@@ -265,7 +265,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
         <div class="totals-section">
           <table class="totals-table">
             <tr>
-              <td class="label">SUBTOTAL 12%</td>
+              <td class="label">SUBTOTAL 15%</td>
               <td class="amount">$${parseFloat(factura.infoFactura.totalSinImpuestos).toFixed(2)}</td>
             </tr>
             <tr>
@@ -285,7 +285,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
               <td class="amount">$0.00</td>
             </tr>
             <tr>
-              <td class="label">IVA 12%</td>
+              <td class="label">IVA 15%</td>
               <td class="amount">$${(parseFloat(factura.infoFactura.importeTotal) - parseFloat(factura.infoFactura.totalSinImpuestos)).toFixed(2)}</td>
             </tr>
             <tr>

@@ -124,6 +124,9 @@ El certificado digital (archivo .p12) debe ser convertido a **base64** y enviado
 # Convertir certificado .p12 a base64 (Linux/Mac)
 base64 -i certificado.p12 -o certificado_base64.txt
 
+# Convertir certificado sin saltos de linea (recomendado)
+base64 -w 0 certificado.p12 > certificado.txt
+
 # O en PowerShell (Windows)
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("certificado.p12"))
 ```

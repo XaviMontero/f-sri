@@ -579,6 +579,7 @@ export class InvoiceService {
 
       // Obtener el proveedor de almacenamiento configurado
       const storage = PDFStorageFactory.create();
+      console.log(storage)
       const filename = `factura_${factura.secuencial}_${factura.clave_acceso}`;
 
       // Subir el PDF al proveedor de almacenamiento
