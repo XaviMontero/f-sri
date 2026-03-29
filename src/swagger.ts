@@ -261,6 +261,14 @@ export default {
         responses: { '200': { description: 'Deleted' } },
       },
     },
+    '/api/v1/client/docid/:identificacion': {
+      get: {
+        tags: ['Client Management'],
+        summary: 'Get Cliente by Identity Number',
+        parameters: [{name: 'identificacion', in: 'path', required:true, schema: {type: 'string'}}],
+        responses: {'200': { description: 'OK'}}
+      }
+    },
     '/api/v1/product': {
       get: { tags: ['Product Management'], summary: 'List Products', responses: { '200': { description: 'OK' } } },
       post: {
