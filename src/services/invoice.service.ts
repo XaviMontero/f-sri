@@ -2,7 +2,7 @@ import { CreateInvoiceDTO, InvoiceRequest, ProductDetail, AccessKeyDTO } from '.
 import { convertirFecha, generarClaveAcceso } from '../utils/invoice.utils';
 import { generarXMLFactura } from '../utils/xml.utils';
 import { firmarXML } from '../utils/firma.utils';
-import { enviarComprobanteSRI, RespuestaSRI } from '../utils/sri.utils';
+import { enviarComprobanteSRI, autorizarComprobanteSRI, RespuestaSRI } from '../utils/sri.utils';
 import { generateInvoicePDF } from '../utils/pdf.utils';
 import { PDFStorageFactory } from './storage';
 import Invoice from '../models/Invoice';
@@ -117,7 +117,7 @@ export class InvoiceService {
         } catch (error) {
           throw new Error(
             'Error al procesar el certificado PKCS#12: ' +
-              (error instanceof Error ? error.message : 'Error desconocido'),
+            (error instanceof Error ? error.message : 'Error desconocido'),
           );
         }
 
@@ -391,6 +391,14 @@ export class InvoiceService {
                 `✅ FACTURA RECIBIDA POR SRI - ID: ${factura._id}, Clave: ${factura.clave_acceso}, Secuencial: ${factura.secuencial}`,
               );
               await this.generarPDFFactura(factura, empresa, cliente, productos, datosFactura);
+              setTimeout(async () => {
+                try {
+                  // Llamamos al método estático directamente desde la Clase
+                  await InvoiceService.consultarAutorizacionSRI(factura._id);
+                } catch (error) {
+                  console.error("Error en la consulta de autorización automática:", error);
+                }
+              }, 5000);
             } else {
               console.log(`⚠️ SRI Estado: ${respuestaSRI.estado} - Factura ID: ${factura._id}`);
             }
@@ -737,6 +745,50 @@ export class InvoiceService {
       return diagnosis;
     } catch (error: any) {
       return { ...diagnosis, error: `Error general: ${error.message}` };
+    }
+  }
+
+  /**
+   * Consulta el estado de autorización de una factura ya recibida por el SRI
+   */
+  static async consultarAutorizacionSRI(facturaId: string): Promise<RespuestaSRI | null> {
+    try {
+      const factura = await Invoice.findById(facturaId);
+      if (!factura || !factura.clave_acceso) {
+        throw new Error('Factura no encontrada o sin clave de acceso');
+      }
+
+      console.log(`🔍 Consultando autorización para clave: ${factura.clave_acceso}`);
+      const respuestaSRI = await autorizarComprobanteSRI(factura.clave_acceso);
+
+      // Actualizar la factura con la respuesta del SRI
+      factura.sri_estado = respuestaSRI.estado;
+      factura.sri_fecha_respuesta = new Date();
+      if (respuestaSRI.mensajes) {
+        factura.sri_mensajes = respuestaSRI.mensajes;
+      }
+      await factura.save();
+
+      // Si se autorizó, disparamos la generación del PDF (RIDE)
+      if (respuestaSRI.estado === 'AUTORIZADA') {
+        console.log(`✅ FACTURA AUTORIZADA - Secuencial: ${factura.secuencial}`);
+
+        // Recuperamos datos necesarios para el PDF
+        const empresa = await IssuingCompany.findById(factura.empresa_emisora_id);
+        const cliente = await Client.findById(factura.cliente_id);
+        const detalles = await InvoiceDetail.find({ factura_id: factura._id });
+        const datosOriginales = JSON.parse(factura.datos_originales || '{}');
+
+        if (empresa && cliente) {
+          // Re-utilizamos tu método existente para el PDF
+          await this.generarPDFFactura(factura, empresa, cliente, [], datosOriginales);
+        }
+      }
+
+      return respuestaSRI;
+    } catch (error: any) {
+      console.error('❌ Error al consultar autorización:', error.message);
+      return null;
     }
   }
 }

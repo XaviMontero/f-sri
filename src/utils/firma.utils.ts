@@ -16,79 +16,71 @@ interface KeyInfoProvider {
  */
 export async function firmarXML(xmlString: string, pemPath: string, password: string): Promise<string> {
   try {
-    // Read PEM file
     const pemData = fs.readFileSync(pemPath, 'utf8');
 
-    // Parse the PEM certificate
+    // 1. Extraer Certificado (Limpiando cabeceras y saltos de línea)
     const certPart = pemData.split('-----BEGIN CERTIFICATE-----')[1]?.split('-----END CERTIFICATE-----')[0];
-    if (!certPart) {
-      throw new Error('No se pudo encontrar el certificado en el archivo PEM');
-    }
+    if (!certPart) throw new Error('No se pudo encontrar el certificado');
+    const certBase64 = certPart.replace(/\s+/g, '').trim();
 
-    const certPem = `-----BEGIN CERTIFICATE-----${certPart}-----END CERTIFICATE-----`;
-
-    try {
-      const certificate = forge.pki.certificateFromPem(certPem);
-    } catch (e) {
-      console.error('Error parsing certificate:', e);
-      throw new Error('Error al parsear el certificado: ' + (e as Error).message);
-    }
-
-    // Extract the private key from the certificate
-    let privateKey;
+    // 2. Extraer Clave Privada
     let privateKeyPem = '';
-
-    // Check RSA PRIVATE KEY format
     if (pemData.includes('-----BEGIN RSA PRIVATE KEY-----')) {
-      const rsaKeyPart = pemData.split('-----BEGIN RSA PRIVATE KEY-----')[1]?.split('-----END RSA PRIVATE KEY-----')[0];
-      if (rsaKeyPart) {
-        privateKeyPem = `-----BEGIN RSA PRIVATE KEY-----${rsaKeyPart}-----END RSA PRIVATE KEY-----`;
-        privateKey = privateKeyPem;
-      }
+      privateKeyPem = `-----BEGIN RSA PRIVATE KEY-----${pemData.split('-----BEGIN RSA PRIVATE KEY-----')[1]?.split('-----END RSA PRIVATE KEY-----')[0]}-----END RSA PRIVATE KEY-----`;
+    } else if (pemData.includes('-----BEGIN PRIVATE KEY-----')) {
+      privateKeyPem = `-----BEGIN PRIVATE KEY-----${pemData.split('-----BEGIN PRIVATE KEY-----')[1]?.split('-----END PRIVATE KEY-----')[0]}-----END PRIVATE KEY-----`;
     }
-    // Check PRIVATE KEY format
-    else if (pemData.includes('-----BEGIN PRIVATE KEY-----')) {
-      const keyPart = pemData.split('-----BEGIN PRIVATE KEY-----')[1]?.split('-----END PRIVATE KEY-----')[0];
-      if (keyPart) {
-        privateKeyPem = `-----BEGIN PRIVATE KEY-----${keyPart}-----END PRIVATE KEY-----`;
-        privateKey = privateKeyPem;
-      }
-    }
+    if (!privateKeyPem) throw new Error('No se encontró la clave privada');
 
-    if (!privateKeyPem) {
-      throw new Error('No se encontró la clave privada en el archivo PEM');
-    }
-
+    // 3. CONFIGURACIÓN OFICIAL PARA v6.1.2
+    // 1. Configuramos el prefijo 'ds' y los algoritmos
     const sig = new SignedXml({
-      privateKey: privateKey,
-      signatureAlgorithm: 'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
+      privateKey: privateKeyPem,
+      signatureAlgorithm: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
       canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
-    }) as any;
+    } as any);
 
+    // 2. FORZAMOS el prefijo 'ds' manualmente (truco para v6.x)
+    (sig as any).signatureAlgorithm = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+
+    // 1. Definimos el KeyInfo con el prefijo ds: explícito
+    (sig as any).keyInfo = `<ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data>`;
+
+    // 2. Agregamos la referencia (Asegúrate que el XPath coincida con tu XML)
     sig.addReference({
       xpath: "//*[local-name(.)='factura']",
       transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature'],
-      digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
+      digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
     });
 
-    sig.keyInfoProvider = {
-      getKeyInfo(): string {
-        return `<X509Data><X509Certificate>${certPem
-          .replace('-----BEGIN CERTIFICATE-----', '')
-          .replace('-----END CERTIFICATE-----', '')
-          .replace(/\r?\n|\r/g, '')}</X509Certificate></X509Data>`;
+    // 3. EL TRUCO MAESTRO PARA EL SRI:
+    // 1. EL TRUCO PARA EVITAR EL HIERARCHY ERROR:
+    // Cambiamos 'after' (fuera) por 'append' (dentro al final)
+    sig.computeSignature(xmlString, {
+      prefix: 'ds',
+      attrs: {
+        xmlns: 'http://www.w3.org/2000/09/xmldsig#'
       },
-    } as KeyInfoProvider;
+      location: {
+        // Buscamos la etiqueta factura
+        reference: "//*[local-name(.)='factura']",
+        // 'append' la mete DENTRO de la factura, al final de los detalles/totales
+        action: 'append'
+      }
+    });
 
-    // Sign XML
-    const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-    sig.computeSignature(xmlString);
-    return sig.getSignedXml();
+    // 2. IMPORTANTE: En versiones nuevas de xml-crypto, 
+    // a veces es necesario pasar el documento parseado si falla el string
+    const signedXml = sig.getSignedXml();
+    fs.writeFileSync('ultimo_xml_firmado.xml', signedXml);
+    return signedXml;
+
   } catch (error: any) {
     console.error('Error signing XML:', error.message);
     throw new Error(`Error al firmar XML: ${error.message}`);
   }
 }
+//Ayudita fs.writeFileSync('ultimo_xml_firmado.xml', sig.getSignedXml());
 
 /**
  * Guarda un XML firmado en un archivo
