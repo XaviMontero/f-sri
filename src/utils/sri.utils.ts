@@ -11,36 +11,36 @@ export interface RespuestaSRI {
       claveAcceso: string;
       mensajes?: {
         mensaje:
-          | Array<{
-              identificador: string;
-              mensaje: string;
-              informacionAdicional?: string;
-              tipo: string;
-            }>
-          | {
-              identificador: string;
-              mensaje: string;
-              informacionAdicional?: string;
-              tipo: string;
-            };
+        | Array<{
+          identificador: string;
+          mensaje: string;
+          informacionAdicional?: string;
+          tipo: string;
+        }>
+        | {
+          identificador: string;
+          mensaje: string;
+          informacionAdicional?: string;
+          tipo: string;
+        };
       };
     }[];
   };
   // For general errors at the request level, not specific to a receipt
   mensajes?: {
     mensaje:
-      | Array<{
-          identificador: string;
-          mensaje: string;
-          informacionAdicional?: string;
-          tipo: string;
-        }>
-      | {
-          identificador: string;
-          mensaje: string;
-          informacionAdicional?: string;
-          tipo: string;
-        };
+    | Array<{
+      identificador: string;
+      mensaje: string;
+      informacionAdicional?: string;
+      tipo: string;
+    }>
+    | {
+      identificador: string;
+      mensaje: string;
+      informacionAdicional?: string;
+      tipo: string;
+    };
   };
 }
 
@@ -53,11 +53,25 @@ const WSDL_PRODUCCION_RECEPCION =
   process.env.SRI_RECEPCION_URL_PRODUCCION ||
   'https://cel.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline?wsdl';
 
+// WSDL URLs for SRI - for Auth
+
+const WSDL_PRUEBAS_AUTORIZACION =
+  process.env.SRI_AUTORIZACION_URL_PRUEBAS ||
+  'https://celcer.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl';
+
+const WSDL_PRODUCCION_AUTORIZACION =
+  process.env.SRI_AUTORIZACION_URL_PRODUCCION ||
+  'https://cel.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl';
+
+
 /**
  * Get the appropriate WSDL URL based on environment
  */
-function getWsdlUrl(): string {
+function getWsdlUrl(tipo: 'recepcion' | 'autorizacion' = 'recepcion'): string {
   const environment = process.env.SRI_ENVIRONMENT || '1';
+  if (tipo === 'autorizacion') {
+    return environment === '2' ? WSDL_PRODUCCION_AUTORIZACION : WSDL_PRUEBAS_AUTORIZACION;
+  }
   return environment === '2' ? WSDL_PRODUCCION_RECEPCION : WSDL_PRUEBAS_RECEPCION;
 }
 
@@ -234,3 +248,46 @@ function stripPrefix(name: string): string {
   return name.substring(name.indexOf(':') + 1);
 }
 */
+/**
+ * Consulta la autorización de un comprobante usando su clave de acceso.
+ */
+export async function autorizarComprobanteSRI(claveAcceso: string): Promise<RespuestaSRI> {
+  try {
+    const soapRequestBody =
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ec="http://ec.gob.sri.ws.autorizacion">' +
+      '<soap:Header/>' +
+      '<soap:Body>' +
+      '<ec:autorizacionComprobante>' +
+      '<claveAccesoComprobante>' + claveAcceso + '</claveAccesoComprobante>' +
+      '</ec:autorizacionComprobante>' +
+      '</soap:Body>' +
+      '</soap:Envelope>';
+
+    const response = await axios.post(getWsdlUrl('autorizacion'), soapRequestBody, {
+      headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+      timeout: 30000,
+    });
+    if (typeof response.data === 'string') {
+      const result = parseXmlResponse(response.data);
+      if (result.estado !== 'ERROR_SOAP') {
+        return result;
+      }
+    }
+    return {
+      estado: 'ERROR_COMUNICACION',
+      mensajes: {
+        mensaje: {
+          identificador: '000',
+          mensaje: 'No se pudo determinar el SOAPAction correcto para el servicio del SRI',
+          tipo: 'ERROR',
+        },
+      },
+    };
+  } catch (error: any) {
+    return {
+      estado: 'ERROR_COMUNICACION',
+      mensajes: { mensaje: { identificador: '000', mensaje: error.message, tipo: 'ERROR' } },
+    };
+  }
+}
