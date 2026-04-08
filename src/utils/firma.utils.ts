@@ -1,158 +1,121 @@
 import fs from 'fs';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import forge from 'node-forge';
-
-interface KeyInfoProvider {
-  getKeyInfo(): string;
-}
+import { signInvoiceXml } from 'ec-sri-invoice-signer';
 
 /**
- * Firma un documento XML usando un certificado PEM
+ * Firma un documento XML usando la librería oficial ec-sri-invoice-signer
+ * Extrae el certificado correcto (Persona Natural) del P12 antes de firmar
  * @param xmlString String del XML a firmar
- * @param pemPath Ruta al archivo PEM del certificado
- * @param password Contraseña del certificado (opcional para PEM)
+ * @param p12Path Ruta al archivo P12 del certificado
+ * @param password Contraseña del certificado P12
  * @returns String del XML firmado
  */
-export async function firmarXML(xmlString: string, pemPath: string, password: string): Promise<string> {
+export async function firmarXML(xmlString: string, p12Path: string, password: string): Promise<string> {
   try {
-    const pemData = fs.readFileSync(pemPath, 'utf8');
-    const certPart = pemData.split('-----BEGIN CERTIFICATE-----')[1]?.split('-----END CERTIFICATE-----')[0];
-    if (!certPart) throw new Error('No se pudo encontrar el certificado en el archivo PEM');
+    console.log('P12 Path:', p12Path);
+    const p12Buffer = fs.readFileSync(p12Path);
 
-    const certPem = `-----BEGIN CERTIFICATE-----${certPart}-----END CERTIFICATE-----`;
-    const certificate = forge.pki.certificateFromPem(certPem);
-    const certBase64 = certPart.replace(/\r?\n|\r/g, '');
+    // Decodificar el P12 para extraer el certificado correcto
+    const p12Base64 = p12Buffer.toString('base64');
+    const p12Der = forge.util.decode64(p12Base64);
+    const p12Asn1 = forge.asn1.fromDer(p12Der);
+    const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, true, password || '');
 
-    let privateKeyPem = '';
-    if (pemData.includes('-----BEGIN RSA PRIVATE KEY-----')) {
-       privateKeyPem = `-----BEGIN RSA PRIVATE KEY-----${pemData.split('-----BEGIN RSA PRIVATE KEY-----')[1].split('-----END RSA PRIVATE KEY-----')[0]}-----END RSA PRIVATE KEY-----`;
-    } else if (pemData.includes('-----BEGIN PRIVATE KEY-----')) {
-       privateKeyPem = `-----BEGIN PRIVATE KEY-----${pemData.split('-----BEGIN PRIVATE KEY-----')[1].split('-----END PRIVATE KEY-----')[0]}-----END PRIVATE KEY-----`;
+    console.log('P12 parsed successfully');
+    console.log('All bags:', Object.keys(p12.getBags({})));
+
+    // Extraer certificados
+    const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
+    const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+    const allKeyBags = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [];
+    const keyBag2 = p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag];
+    const allKeyBags2 = keyBag2 || [];
+
+    console.log('Key bags found:', Object.keys(keyBags));
+    console.log('Total PKCS#8 keys:', allKeyBags.length);
+    console.log('Total RSA keys:', allKeyBags2.length);
+
+    // Primero: Seleccionar el certificado de firma digital (serial más alto, no CA)
+    let correctCert: any = null;
+    let correctCertSerial: string = '';
+    let correctCertLocalKeyId: any = null;
+
+    console.log('\n=== Buscando certificado de firma digital ===');
+    for (const certBag of certBags) {
+      if (!certBag.cert) continue;
+      
+      const cn = certBag.cert.subject.getField({ shortName: 'CN' })?.value || '';
+      const serial = certBag.cert.serialNumber;
+      const certLocalKeyId = certBag.attributes?.localKeyId?.[0];
+      
+      // Solo considerar certificados que no sean CA/AUTORIDAD
+      if (!cn.includes('AUTORIDAD') && !cn.includes('AC ')) {
+        console.log(`Candidate: ${cn}, Serial: ${serial}`);
+        
+        // Seleccionar el certificado con serial más alto
+        if (!correctCert || parseInt(serial, 16) > parseInt(correctCertSerial, 16)) {
+          correctCert = certBag.cert;
+          correctCertSerial = serial;
+          correctCertLocalKeyId = certLocalKeyId;
+          console.log(`  ✅ Nuevo mejor candidato seleccionado`);
+        }
+      }
     }
-    if (!privateKeyPem) throw new Error('No se encontró la clave privada');
+
+    if (!correctCert) {
+      throw new Error('No se encontró certificado de firma digital (Persona Natural) en el P12');
+    }
+
+    console.log(`\n✅ Certificado de firma digital seleccionado: ${correctCert.subject.getField({ shortName: 'CN' })?.value}, Serial: ${correctCertSerial}`);
+
+    // Segundo: Buscar la clave privada que corresponde a este certificado
+    console.log(`\n=== Buscando clave privada para localKeyId: ${JSON.stringify(correctCertLocalKeyId)} ===`);
+    let correctKeyBag: any = null;
+
+    for (const keyBag of allKeyBags) {
+      const keyLocalKeyId = keyBag.attributes?.localKeyId?.[0];
+      console.log(`  PKCS#8 Key localKeyId: ${JSON.stringify(keyLocalKeyId)}, Match: ${keyLocalKeyId === correctCertLocalKeyId}`);
+      if (keyLocalKeyId === correctCertLocalKeyId) {
+        correctKeyBag = keyBag;
+        console.log(`    ✅ Clave encontrada`);
+        break;
+      }
+    }
+
+    if (!correctKeyBag) {
+      for (const keyBag of allKeyBags2) {
+        const keyLocalKeyId = keyBag.attributes?.localKeyId?.[0];
+        console.log(`  RSA Key localKeyId: ${JSON.stringify(keyLocalKeyId)}, Match: ${keyLocalKeyId === correctCertLocalKeyId}`);
+        if (keyLocalKeyId === correctCertLocalKeyId) {
+          correctKeyBag = keyBag;
+          console.log(`    ✅ Clave encontrada`);
+          break;
+        }
+      }
+    }
+
+    if (!correctKeyBag || !correctKeyBag.key) {
+      throw new Error('No se encontró clave privada asociada al certificado de firma digital');
+    }
+
+    // Convertir clave privada a formato PEM y de vuelta para asegurar compatibilidad
+    const privateKeyPem = forge.pki.privateKeyToPem(correctKeyBag.key);
     const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
 
-    // Generación de identificadores únicos para la firma (estilo SRI)
-    const salt = Math.floor(Math.random() * 1000000);
-    const signatureId = `Signature${salt}`;
-    const signedInfoId = `Signature-SignedInfo${salt + 1}`;
-    const signedPropertiesId = `Signature${salt}-SignedProperties${salt + 2}`;
-    const certificateId = `Certificate${salt + 3}`;
-    const referenceId = `Reference-ID-${salt + 4}`;
-    const signatureValueId = `SignatureValue${salt + 5}`;
-    const objectId = `Signature${salt}-Object${salt + 6}`;
-    const signedPropertiesRefId = `SignedPropertiesID${salt + 7}`;
+    // Crear un P12 temporal solo con el certificado y clave correctos
+    const tempP12Asn1 = forge.pkcs12.toPkcs12Asn1(privateKey, correctCert, password || '');
+    const tempP12Der = forge.asn1.toDer(tempP12Asn1).getBytes();
+    const tempP12Buffer = Buffer.from(tempP12Der, 'binary');
 
-    const signingTime = new Date().toISOString().split('.')[0] + '-05:00';
+    // Firmar usando la librería oficial del SRI con el P12 temporal
+    const signedXml = signInvoiceXml(xmlString, tempP12Buffer, {
+      pkcs12Password: password || ''
+    });
 
-    // Datos del emisor del certificado
-    const issuerAttributes = certificate.issuer.attributes.map(attr => {
-      const name = attr.shortName || attr.name;
-      return `${name}=${attr.value}`;
-    }).reverse().join(',');
-    const serialNumber = certificate.serialNumber;
+    // Guardar para debugging
+    guardarXMLFirmado(signedXml, "./firmado.xml");
 
-    // Digest del certificado
-    const certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(certificate)).getBytes();
-    const certDigest = forge.util.encode64(forge.md.sha1.create().update(certDer).digest().getBytes());
-
-    // Datos de la llave pública
-    const publicKey = certificate.publicKey as forge.pki.rsa.PublicKey;
-    const modulus = forge.util.encode64(forge.util.hexToBytes(publicKey.n.toString(16)));
-    const exponent = forge.util.encode64(forge.util.hexToBytes(publicKey.e.toString(16)));
-
-    const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-    const facturaElement = doc.getElementsByTagName('factura')[0];
-    facturaElement.setAttribute('id', 'comprobante');
-    
-    const serializer = new XMLSerializer();
-    const facturaXml = serializer.serializeToString(facturaElement);
-    const docDigest = forge.util.encode64(forge.md.sha1.create().update(facturaXml).digest().getBytes());
-
-    // Construcción del bloque SignedProperties (XAdES)
-    const signedPropertiesXml = `
-<etsi:SignedProperties xmlns:etsi="http://uri.etsi.org/01903/v1.3.2#" Id="${signedPropertiesId}">
-    <etsi:SignedSignatureProperties>
-        <etsi:SigningTime>${signingTime}</etsi:SigningTime>
-        <etsi:SigningCertificate>
-            <etsi:Cert>
-                <etsi:CertDigest>
-                    <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>
-                    <ds:DigestValue>${certDigest}</ds:DigestValue>
-                </etsi:CertDigest>
-                <etsi:IssuerSerial>
-                    <ds:X509IssuerName>${issuerAttributes}</ds:X509IssuerName>
-                    <ds:X509SerialNumber>${parseInt(serialNumber, 16)}</ds:X509SerialNumber>
-                </etsi:IssuerSerial>
-            </etsi:Cert>
-        </etsi:SigningCertificate>
-    </etsi:SignedSignatureProperties>
-    <etsi:SignedDataObjectProperties>
-        <etsi:DataObjectFormat ObjectReference="#${referenceId}">
-            <etsi:Description>contenido comprobante</etsi:Description>
-            <etsi:MimeType>text/xml</etsi:MimeType>
-        </etsi:DataObjectFormat>
-    </etsi:SignedDataObjectProperties>
-</etsi:SignedProperties>`.trim();
-    
-    const signedPropertiesDigest = forge.util.encode64(forge.md.sha1.create().update(signedPropertiesXml).digest().getBytes());
-
-    // Construcción del bloque SignedInfo con las 3 referencias requeridas
-    const signedInfoXml = `
-<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="${signedInfoId}">
-    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod>
-    <ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod>
-    <ds:Reference Id="${signedPropertiesRefId}" Type="http://uri.etsi.org/01903#SignedProperties" URI="#${signedPropertiesId}">
-        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>
-        <ds:DigestValue>${signedPropertiesDigest}</ds:DigestValue>
-    </ds:Reference>
-    <ds:Reference URI="#${certificateId}">
-        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>
-        <ds:DigestValue>${certDigest}</ds:DigestValue>
-    </ds:Reference>
-    <ds:Reference Id="${referenceId}" URI="#comprobante">
-        <ds:Transforms>
-            <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>
-        </ds:Transforms>
-        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod>
-        <ds:DigestValue>${docDigest}</ds:DigestValue>
-    </ds:Reference>
-</ds:SignedInfo>`.trim();
-
-    // Cálculo del valor de la firma sobre SignedInfo
-    const md = forge.md.sha1.create();
-    md.update(signedInfoXml, 'utf8');
-    const signatureValue = forge.util.encode64(privateKey.sign(md));
-
-    // Ensamblaje final de la Firma Digital
-    const signatureXml = `
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:etsi="http://uri.etsi.org/01903/v1.3.2#" Id="${signatureId}">
-    ${signedInfoXml}
-    <ds:SignatureValue Id="${signatureValueId}">
-        ${signatureValue}
-    </ds:SignatureValue>
-    <ds:KeyInfo Id="${certificateId}">
-        <ds:X509Data>
-            <ds:X509Certificate>${certBase64}</ds:X509Certificate>
-        </ds:X509Data>
-        <ds:KeyValue>
-            <ds:RSAKeyValue>
-                <ds:Modulus>${modulus}</ds:Modulus>
-                <ds:Exponent>${exponent}</ds:Exponent>
-            </ds:RSAKeyValue>
-        </ds:KeyValue>
-    </ds:KeyInfo>
-    <ds:Object Id="${objectId}">
-        <etsi:QualifyingProperties xmlns:etsi="http://uri.etsi.org/01903/v1.3.2#" Target="#${signatureId}">
-            ${signedPropertiesXml}
-        </etsi:QualifyingProperties>
-    </ds:Object>
-</ds:Signature>`.trim();
-
-    const signatureNode = new DOMParser().parseFromString(signatureXml, 'text/xml').documentElement;
-    facturaElement.appendChild(signatureNode);
-
-    return serializer.serializeToString(doc);
+    return signedXml;
   } catch (error: any) {
     console.error('Error signing XML:', error.message);
     throw new Error(`Error al firmar XML: ${error.message}`);

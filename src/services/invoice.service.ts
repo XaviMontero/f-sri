@@ -367,8 +367,8 @@ export class InvoiceService {
             }
           }
 
-          const pemPath = await InvoiceService.convertP12ToPem(p12Path, workingPassword);
-          const xmlFirmado = await firmarXML(factura.xml, pemPath, workingPassword);
+          // Usar directamente el P12 con la librería oficial ec-sri-invoice-signer
+          const xmlFirmado = await firmarXML(factura.xml, p12Path, workingPassword);
 
           factura.xml_firmado = xmlFirmado;
           await factura.save();
@@ -496,33 +496,40 @@ export class InvoiceService {
         );
       }
 
-      const certBag = certBags[0];
       const privateKey = keyBag.key;
-      const certificate = certBag.cert;
 
-      if (!privateKey || !certificate) {
+      if (!privateKey || !certBags.length) {
         throw new Error('No se pudo extraer el certificado o la clave privada del archivo P12');
       }
 
-      const pemCertificate = forge.pki.certificateToPem(certificate);
+      const localKeyId = keyBag.attributes?.localKeyId?.[0];
+      let leafCertPem = '';
+      let otherCertsPem = '';
+
+      for (const certBag of certBags) {
+        if (certBag.cert) {
+          const certPem = forge.pki.certificateToPem(certBag.cert);
+          const certLocalKeyId = certBag.attributes?.localKeyId?.[0];
+          
+          // Si el localKeyId coincide, este es el certificado del firmante (Leaf)
+          if (localKeyId && certLocalKeyId && localKeyId === certLocalKeyId) {
+            leafCertPem = certPem;
+          } else {
+            otherCertsPem += certPem;
+          }
+        }
+      }
+
+      // Si no hay localKeyId (raro), usamos el primero
+      if (!leafCertPem && certBags.length > 0 && certBags[0].cert) {
+        leafCertPem = forge.pki.certificateToPem(certBags[0].cert);
+      }
+
       const pemPrivateKey = forge.pki.privateKeyToPem(privateKey);
 
       const tempDir = os.tmpdir();
-      const certPath = path.join(tempDir, `cert-${Date.now()}.pem`);
-      const keyPath = path.join(tempDir, `key-${Date.now()}.pem`);
-
-      fs.writeFileSync(certPath, pemCertificate);
-      fs.writeFileSync(keyPath, pemPrivateKey);
-
-      const certContent = fs.readFileSync(certPath, 'utf8');
-      const keyContent = fs.readFileSync(keyPath, 'utf8');
-
       const combinedPemPath = path.join(tempDir, `combined-${Date.now()}.pem`);
-
-      const formattedCert = certContent.trim();
-      const formattedKey = keyContent.trim();
-
-      const combinedContent = `${formattedKey}\n\n${formattedCert}`;
+      const combinedContent = `${pemPrivateKey}\n${leafCertPem}\n${otherCertsPem}`;
 
       fs.writeFileSync(combinedPemPath, combinedContent);
 
