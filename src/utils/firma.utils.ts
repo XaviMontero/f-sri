@@ -43,15 +43,15 @@ export async function firmarXML(xmlString: string, p12Path: string, password: st
     console.log('\n=== Buscando certificado de firma digital ===');
     for (const certBag of certBags) {
       if (!certBag.cert) continue;
-      
+
       const cn = certBag.cert.subject.getField({ shortName: 'CN' })?.value || '';
       const serial = certBag.cert.serialNumber;
       const certLocalKeyId = certBag.attributes?.localKeyId?.[0];
-      
+
       // Solo considerar certificados que no sean CA/AUTORIDAD
       if (!cn.includes('AUTORIDAD') && !cn.includes('AC ')) {
         console.log(`Candidate: ${cn}, Serial: ${serial}`);
-        
+
         // Seleccionar el certificado con serial más alto
         if (!correctCert || parseInt(serial, 16) > parseInt(correctCertSerial, 16)) {
           correctCert = certBag.cert;
@@ -111,9 +111,6 @@ export async function firmarXML(xmlString: string, p12Path: string, password: st
     const signedXml = signInvoiceXml(xmlString, tempP12Buffer, {
       pkcs12Password: password || ''
     });
-
-    // Guardar para debugging
-    guardarXMLFirmado(signedXml, "./firmado.xml");
 
     return signedXml;
   } catch (error: any) {
