@@ -29,7 +29,7 @@ export function generarXMLFactura(
     })
     .ele('infoTributaria')
     .ele('ambiente')
-    .txt(String(empresa.tipo_ambiente))
+    .txt(empresa.tipo_ambiente.toString()) // 1=Pruebas, 2=Producción
     .up()
     .ele('tipoEmision')
     .txt(String(empresa.tipo_emision))
