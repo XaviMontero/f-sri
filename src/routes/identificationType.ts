@@ -32,6 +32,16 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/code/:codigo', async (req, res) => {
+  try {
+    const doc = await IdentificationType.findOne({codigo: req.params.codigo});
+    if (!doc) return res.status(404).json({ message: 'Not found'});
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error'})
+  }
+});
+
 router.put('/:id', async (req, res) => {
   try {
     const doc = await IdentificationType.findByIdAndUpdate(req.params.id, req.body, { new: true });
