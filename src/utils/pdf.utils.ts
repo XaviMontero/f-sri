@@ -3,12 +3,46 @@ import { IIssuingCompany } from '../models/IssuingCompany';
 import { IClient } from '../models/Client';
 import { IProduct } from '../models/Product';
 import { InvoiceRequest } from '../interfaces/invoice.interface';
+import { CreditNoteRequest } from '../interfaces/credit-note.interface';
+import { DebitNoteRequest } from '../interfaces/debit-note.interface';
 
 interface InvoiceData {
   factura: any;
   empresa: IIssuingCompany;
   cliente: IClient;
   productos: IProduct[];
+  claveAcceso: string;
+  secuencial: string;
+  fechaEmision: Date;
+  numeroAutorizacion: string;
+  fechaAutorizacion: Date;
+  /** Título del documento en el RIDE. Por defecto 'FACTURA' */
+  tipoDocumento?: string;
+  /** Información del documento que se modifica (solo notas de crédito/débito) */
+  docModificado?: {
+    tipo: string;
+    numero: string;
+    fechaEmision: string;
+    motivo: string;
+  };
+}
+
+export interface CreditNotePDFData {
+  notaCredito: CreditNoteRequest;
+  empresa: IIssuingCompany;
+  cliente: IClient;
+  productos: IProduct[];
+  claveAcceso: string;
+  secuencial: string;
+  fechaEmision: Date;
+  numeroAutorizacion: string;
+  fechaAutorizacion: Date;
+}
+
+export interface DebitNotePDFData {
+  notaDebito: DebitNoteRequest;
+  empresa: IIssuingCompany;
+  cliente: IClient;
   claveAcceso: string;
   secuencial: string;
   fechaEmision: Date;
@@ -31,6 +65,22 @@ function generateInvoiceHTML(data: InvoiceData): string {
     numeroAutorizacion,
     fechaAutorizacion,
   } = data;
+
+  const tituloDocumento = data.tipoDocumento || 'FACTURA';
+  const tarifaIva = process.env.IVA || '15';
+  const filasDocModificado = data.docModificado
+    ? `
+          <tr>
+            <td class="label">Comprobante que se modifica</td>
+            <td>${data.docModificado.tipo} ${data.docModificado.numero}</td>
+            <td class="label">Fecha Emisión (Doc. Sustento)</td>
+            <td>${data.docModificado.fechaEmision}</td>
+          </tr>
+          <tr>
+            <td class="label">Razón de Modificación</td>
+            <td colspan="3">${data.docModificado.motivo}</td>
+          </tr>`
+    : '';
 
   return `
     <!DOCTYPE html>
@@ -177,7 +227,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
               R.U.C.: ${empresa.ruc}
             </div>
             <div style="text-align: center; font-weight: bold; margin: 10px 0;">
-              FACTURA
+              ${tituloDocumento}
             </div>
             <div><strong>No.:</strong> ${empresa.codigo_establecimiento}-${empresa.punto_emision}-${secuencial}</div>
             <div style="margin: 10px 0;">
@@ -214,7 +264,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
           <tr>
             <td class="label">Dirección</td>
             <td colspan="3">${cliente.direccion || 'N/A'}</td>
-          </tr>
+          </tr>${filasDocModificado}
         </table>
 
         <!-- Invoice Details -->
@@ -265,7 +315,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
         <div class="totals-section">
           <table class="totals-table">
             <tr>
-              <td class="label">SUBTOTAL 12%</td>
+              <td class="label">SUBTOTAL ${tarifaIva}%</td>
               <td class="amount">$${parseFloat(factura.infoFactura.totalSinImpuestos).toFixed(2)}</td>
             </tr>
             <tr>
@@ -285,7 +335,7 @@ function generateInvoiceHTML(data: InvoiceData): string {
               <td class="amount">$0.00</td>
             </tr>
             <tr>
-              <td class="label">IVA 12%</td>
+              <td class="label">IVA ${tarifaIva}%</td>
               <td class="amount">$${(parseFloat(factura.infoFactura.importeTotal) - parseFloat(factura.infoFactura.totalSinImpuestos)).toFixed(2)}</td>
             </tr>
             <tr>
@@ -359,6 +409,95 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
       await browser.close();
     }
   }
+}
+
+/**
+ * Generates a PDF buffer for a credit note (RIDE) reusing the shared document template
+ */
+export async function generateCreditNotePDF(data: CreditNotePDFData): Promise<Buffer> {
+  const info = data.notaCredito.infoNotaCredito;
+
+  // Map the credit note into the shared document template shape
+  const invoiceShapedData: InvoiceData = {
+    factura: {
+      infoFactura: {
+        totalSinImpuestos: info.totalSinImpuestos,
+        importeTotal: info.valorModificacion,
+      },
+      detalles: data.notaCredito.detalles.map((item) => ({
+        detalle: {
+          codigoPrincipal: item.detalle.codigoInterno,
+          descripcion: item.detalle.descripcion,
+          cantidad: item.detalle.cantidad,
+          precioUnitario: item.detalle.precioUnitario,
+          precioTotalSinImpuesto: item.detalle.precioTotalSinImpuesto,
+          impuestos: item.detalle.impuestos,
+        },
+      })),
+    },
+    empresa: data.empresa,
+    cliente: data.cliente,
+    productos: data.productos,
+    claveAcceso: data.claveAcceso,
+    secuencial: data.secuencial,
+    fechaEmision: data.fechaEmision,
+    numeroAutorizacion: data.numeroAutorizacion,
+    fechaAutorizacion: data.fechaAutorizacion,
+    tipoDocumento: 'NOTA DE CRÉDITO',
+    docModificado: {
+      tipo: info.codDocModificado === '01' ? 'FACTURA' : info.codDocModificado,
+      numero: info.numDocModificado,
+      fechaEmision: info.fechaEmisionDocSustento,
+      motivo: info.motivo,
+    },
+  };
+
+  return generateInvoicePDF(invoiceShapedData);
+}
+
+/**
+ * Generates a PDF buffer for a debit note (RIDE) reusing the shared document template.
+ * The motivos (surcharges) are rendered as the document line items.
+ */
+export async function generateDebitNotePDF(data: DebitNotePDFData): Promise<Buffer> {
+  const info = data.notaDebito.infoNotaDebito;
+  const motivoPrincipal = data.notaDebito.motivos[0]?.motivo.razon || '';
+
+  const invoiceShapedData: InvoiceData = {
+    factura: {
+      infoFactura: {
+        totalSinImpuestos: info.totalSinImpuestos,
+        importeTotal: info.valorTotal,
+      },
+      detalles: data.notaDebito.motivos.map((item) => ({
+        detalle: {
+          codigoPrincipal: '',
+          descripcion: item.motivo.razon,
+          cantidad: '1',
+          precioUnitario: item.motivo.valor,
+          precioTotalSinImpuesto: item.motivo.valor,
+          impuestos: info.impuestos,
+        },
+      })),
+    },
+    empresa: data.empresa,
+    cliente: data.cliente,
+    productos: data.notaDebito.motivos.map(() => ({}) as IProduct),
+    claveAcceso: data.claveAcceso,
+    secuencial: data.secuencial,
+    fechaEmision: data.fechaEmision,
+    numeroAutorizacion: data.numeroAutorizacion,
+    fechaAutorizacion: data.fechaAutorizacion,
+    tipoDocumento: 'NOTA DE DÉBITO',
+    docModificado: {
+      tipo: info.codDocModificado === '01' ? 'FACTURA' : info.codDocModificado,
+      numero: info.numDocModificado,
+      fechaEmision: info.fechaEmisionDocSustento,
+      motivo: motivoPrincipal,
+    },
+  };
+
+  return generateInvoicePDF(invoiceShapedData);
 }
 
 /**

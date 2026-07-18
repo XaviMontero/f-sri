@@ -11,6 +11,8 @@ import issuingCompanyRoutes from './routes/issuingCompany';
 import clientRoutes from './routes/client';
 import productRoutes from './routes/product';
 import invoiceRoutes from './routes/invoice';
+import creditNoteRoutes from './routes/creditNote';
+import debitNoteRoutes from './routes/debitNote';
 import invoiceDetailRoutes from './routes/invoiceDetail';
 import invoicePDFRoutes from './routes/invoicePDF';
 import verifyToken from './middleware/verifyToken';
@@ -92,6 +94,8 @@ app.use('/api/v1/issuing-company', issuingCompanyRoutes);
 app.use('/api/v1/client', clientRoutes);
 app.use('/api/v1/product', productRoutes);
 app.use('/api/v1/invoice', invoiceRoutes);
+app.use('/api/v1/credit-note', creditNoteRoutes);
+app.use('/api/v1/debit-note', debitNoteRoutes);
 app.use('/api/v1/invoice-detail', invoiceDetailRoutes);
 app.use('/api/v1/invoice-pdf', invoicePDFRoutes);
 
