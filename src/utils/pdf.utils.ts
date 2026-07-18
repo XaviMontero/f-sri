@@ -4,6 +4,7 @@ import { IClient } from '../models/Client';
 import { IProduct } from '../models/Product';
 import { InvoiceRequest } from '../interfaces/invoice.interface';
 import { CreditNoteRequest } from '../interfaces/credit-note.interface';
+import { DebitNoteRequest } from '../interfaces/debit-note.interface';
 
 interface InvoiceData {
   factura: any;
@@ -31,6 +32,17 @@ export interface CreditNotePDFData {
   empresa: IIssuingCompany;
   cliente: IClient;
   productos: IProduct[];
+  claveAcceso: string;
+  secuencial: string;
+  fechaEmision: Date;
+  numeroAutorizacion: string;
+  fechaAutorizacion: Date;
+}
+
+export interface DebitNotePDFData {
+  notaDebito: DebitNoteRequest;
+  empresa: IIssuingCompany;
+  cliente: IClient;
   claveAcceso: string;
   secuencial: string;
   fechaEmision: Date;
@@ -437,6 +449,51 @@ export async function generateCreditNotePDF(data: CreditNotePDFData): Promise<Bu
       numero: info.numDocModificado,
       fechaEmision: info.fechaEmisionDocSustento,
       motivo: info.motivo,
+    },
+  };
+
+  return generateInvoicePDF(invoiceShapedData);
+}
+
+/**
+ * Generates a PDF buffer for a debit note (RIDE) reusing the shared document template.
+ * The motivos (surcharges) are rendered as the document line items.
+ */
+export async function generateDebitNotePDF(data: DebitNotePDFData): Promise<Buffer> {
+  const info = data.notaDebito.infoNotaDebito;
+  const motivoPrincipal = data.notaDebito.motivos[0]?.motivo.razon || '';
+
+  const invoiceShapedData: InvoiceData = {
+    factura: {
+      infoFactura: {
+        totalSinImpuestos: info.totalSinImpuestos,
+        importeTotal: info.valorTotal,
+      },
+      detalles: data.notaDebito.motivos.map((item) => ({
+        detalle: {
+          codigoPrincipal: '',
+          descripcion: item.motivo.razon,
+          cantidad: '1',
+          precioUnitario: item.motivo.valor,
+          precioTotalSinImpuesto: item.motivo.valor,
+          impuestos: info.impuestos,
+        },
+      })),
+    },
+    empresa: data.empresa,
+    cliente: data.cliente,
+    productos: data.notaDebito.motivos.map(() => ({}) as IProduct),
+    claveAcceso: data.claveAcceso,
+    secuencial: data.secuencial,
+    fechaEmision: data.fechaEmision,
+    numeroAutorizacion: data.numeroAutorizacion,
+    fechaAutorizacion: data.fechaAutorizacion,
+    tipoDocumento: 'NOTA DE DÉBITO',
+    docModificado: {
+      tipo: info.codDocModificado === '01' ? 'FACTURA' : info.codDocModificado,
+      numero: info.numDocModificado,
+      fechaEmision: info.fechaEmisionDocSustento,
+      motivo: motivoPrincipal,
     },
   };
 

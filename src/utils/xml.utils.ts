@@ -4,6 +4,7 @@ import { IClient } from '../models/Client';
 import { IProduct } from '../models/Product';
 import { InvoiceRequest } from '../interfaces/invoice.interface';
 import { CreditNoteRequest } from '../interfaces/credit-note.interface';
+import { DebitNoteRequest } from '../interfaces/debit-note.interface';
 
 /**
  * IVA configuration (tabla 17 de la Ficha Técnica del SRI).
@@ -363,6 +364,165 @@ export function generarXMLNotaCredito(
 
   doc
     .up() // salir de <detalles>
+    .ele('infoAdicional')
+    .ele('campoAdicional', { nombre: 'Email' })
+    .txt(cliente.email || 'sinfactura@cliente.com')
+    .up()
+    .ele('campoAdicional', { nombre: 'Teléfono' })
+    .txt(cliente.telefono || '0000000000')
+    .up();
+
+  return doc.end({ prettyPrint: true });
+}
+
+/**
+ * Genera un documento XML para una nota de débito electrónica según el formato
+ * v1.0.0 de la Ficha Técnica del SRI de Ecuador (codDoc 05)
+ * @param notaDebito Datos de la nota de débito
+ * @param empresa Empresa emisora
+ * @param cliente Cliente
+ * @param claveAcceso Clave de acceso generada
+ * @param secuencial Número secuencial de la nota de débito
+ * @returns XML de la nota de débito como string
+ */
+export function generarXMLNotaDebito(
+  notaDebito: DebitNoteRequest,
+  empresa: IIssuingCompany,
+  cliente: IClient,
+  claveAcceso: string,
+  secuencial: string,
+): string {
+  const info = notaDebito.infoNotaDebito;
+
+  const doc = create({ version: '1.0', encoding: 'UTF-8' })
+    .ele('notaDebito', {
+      id: 'comprobante',
+      version: '1.0.0',
+    })
+    .ele('infoTributaria')
+    .ele('ambiente')
+    .txt(String(empresa.tipo_ambiente))
+    .up()
+    .ele('tipoEmision')
+    .txt(String(empresa.tipo_emision))
+    .up()
+    .ele('razonSocial')
+    .txt(empresa.razon_social)
+    .up()
+    .ele('nombreComercial')
+    .txt(empresa.nombre_comercial)
+    .up()
+    .ele('ruc')
+    .txt(empresa.ruc)
+    .up()
+    .ele('claveAcceso')
+    .txt(claveAcceso)
+    .up()
+    .ele('codDoc')
+    .txt('05')
+    .up() // nota de débito
+    .ele('estab')
+    .txt(empresa.codigo_establecimiento)
+    .up()
+    .ele('ptoEmi')
+    .txt(empresa.punto_emision)
+    .up()
+    .ele('secuencial')
+    .txt(secuencial)
+    .up()
+    .ele('dirMatriz')
+    .txt(empresa.direccion_matriz || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .up()
+    .ele('infoNotaDebito')
+    .ele('fechaEmision')
+    .txt(info.fechaEmision)
+    .up()
+    .ele('dirEstablecimiento')
+    .txt(empresa.direccion_establecimiento || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .ele('tipoIdentificacionComprador')
+    .txt(info.tipoIdentificacionComprador)
+    .up()
+    .ele('razonSocialComprador')
+    .txt(cliente.razon_social)
+    .up()
+    .ele('identificacionComprador')
+    .txt(cliente.identificacion)
+    .up()
+    .ele('obligadoContabilidad')
+    .txt(empresa.obligado_contabilidad ? 'SI' : 'NO')
+    .up()
+    .ele('codDocModificado')
+    .txt(info.codDocModificado)
+    .up()
+    .ele('numDocModificado')
+    .txt(info.numDocModificado)
+    .up()
+    .ele('fechaEmisionDocSustento')
+    .txt(info.fechaEmisionDocSustento)
+    .up()
+    .ele('totalSinImpuestos')
+    .txt(info.totalSinImpuestos)
+    .up()
+    .ele('impuestos');
+
+  // Tax codes are taken from the request (tablas 16 y 17 de la ficha técnica).
+  // La tarifa de IVA corresponde a la fecha de emisión del documento de sustento.
+  for (const item of info.impuestos) {
+    const impuesto = item.impuesto;
+    doc
+      .ele('impuesto')
+      .ele('codigo')
+      .txt(impuesto.codigo)
+      .up()
+      .ele('codigoPorcentaje')
+      .txt(impuesto.codigoPorcentaje)
+      .up()
+      .ele('tarifa')
+      .txt(impuesto.tarifa)
+      .up()
+      .ele('baseImponible')
+      .txt(impuesto.baseImponible)
+      .up()
+      .ele('valor')
+      .txt(impuesto.valor)
+      .up()
+      .up();
+  }
+
+  // Cursor tracking: xmlbuilder2 returns a new node reference on each call,
+  // so the position after each block must be captured explicitly
+  const pagosNode = doc
+    .up() // salir de <impuestos>
+    .ele('valorTotal')
+    .txt(info.valorTotal)
+    .up()
+    .ele('pagos');
+
+  for (const item of info.pagos) {
+    const pago = item.pago;
+    const pagoNode = pagosNode.ele('pago').ele('formaPago').txt(pago.formaPago).up().ele('total').txt(pago.total).up();
+
+    if (pago.plazo) {
+      pagoNode.ele('plazo').txt(pago.plazo).up();
+    }
+    if (pago.unidadTiempo) {
+      pagoNode.ele('unidadTiempo').txt(pago.unidadTiempo).up();
+    }
+  }
+
+  const motivosNode = pagosNode
+    .up() // salir de <pagos>
+    .up() // salir de <infoNotaDebito>
+    .ele('motivos');
+
+  for (const item of notaDebito.motivos) {
+    motivosNode.ele('motivo').ele('razon').txt(item.motivo.razon).up().ele('valor').txt(item.motivo.valor).up().up();
+  }
+
+  motivosNode
+    .up() // salir de <motivos>
     .ele('infoAdicional')
     .ele('campoAdicional', { nombre: 'Email' })
     .txt(cliente.email || 'sinfactura@cliente.com')
