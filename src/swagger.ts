@@ -482,6 +482,70 @@ export default {
         responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
       },
     },
+    '/api/v1/delivery-note': {
+      get: { tags: ['Delivery Note CRUD'], summary: 'List Delivery Notes', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Create Guía de Remisión',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemision' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/delivery-note/complete': {
+      post: {
+        tags: ['Delivery Note Processing'],
+        summary: 'Create Guía de Remisión completa (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemisionComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/delivery-note/{id}': {
+      get: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Get Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Update Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemision' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Delete Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/delivery-note/{id}/pdf': {
+      get: {
+        tags: ['Delivery Note Processing'],
+        summary: 'Get Guía de Remisión PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
     '/api/v1/invoice-detail': {
       get: {
         tags: ['Invoice Detail Management'],
@@ -941,6 +1005,100 @@ export default {
       },
       NotaCredito: { type: 'object' },
       NotaDebito: { type: 'object' },
+      GuiaRemision: { type: 'object' },
+      GuiaRemisionComplete: {
+        type: 'object',
+        properties: {
+          guia_remision: { $ref: '#/components/schemas/GuiaRemisionBody' },
+        },
+        required: ['guia_remision'],
+      },
+      GuiaRemisionBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoGuiaRemision: { $ref: '#/components/schemas/GuiaRemisionInfo' },
+          destinatarios: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/GuiaRemisionDestinatarioItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoGuiaRemision', 'destinatarios'],
+      },
+      GuiaRemisionInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: {
+            type: 'string',
+            example: '17/05/2025',
+            description: 'Formato DD/MM/YYYY. Se usa para la clave de acceso',
+          },
+          dirPartida: { type: 'string', example: 'Av. Eloy Alfaro 34 y Av. Libertad' },
+          razonSocialTransportista: { type: 'string', example: 'Transportes S.A.' },
+          tipoIdentificacionTransportista: { type: 'string', example: '04', description: 'Tabla 6 SRI' },
+          rucTransportista: { type: 'string', example: '1796875790001' },
+          fechaIniTransporte: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          fechaFinTransporte: { type: 'string', example: '18/05/2025', description: 'Formato DD/MM/YYYY' },
+          placa: { type: 'string', example: 'MCL0827' },
+        },
+        required: [
+          'fechaEmision',
+          'dirPartida',
+          'razonSocialTransportista',
+          'tipoIdentificacionTransportista',
+          'rucTransportista',
+          'fechaIniTransporte',
+          'fechaFinTransporte',
+          'placa',
+        ],
+      },
+      GuiaRemisionDestinatarioItem: {
+        type: 'object',
+        properties: {
+          destinatario: {
+            type: 'object',
+            properties: {
+              identificacionDestinatario: { type: 'string', example: '1716849140001' },
+              razonSocialDestinatario: { type: 'string', example: 'Juan Pérez' },
+              dirDestinatario: { type: 'string', example: 'Av. Simón Bolívar S/N' },
+              motivoTraslado: { type: 'string', example: 'Venta de mercadería' },
+              ruta: { type: 'string', example: 'Quito - Cayambe - Otavalo' },
+              codDocSustento: { type: 'string', example: '01', description: 'Tabla 3 SRI' },
+              numDocSustento: { type: 'string', example: '001-001-000000123' },
+              numAutDocSustento: { type: 'string', example: '1705202501179001234500110010010000000011234567810' },
+              fechaEmisionDocSustento: { type: 'string', example: '17/05/2025' },
+              detalles: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/GuiaRemisionDetalleItem' },
+              },
+            },
+            required: [
+              'identificacionDestinatario',
+              'razonSocialDestinatario',
+              'dirDestinatario',
+              'motivoTraslado',
+              'detalles',
+            ],
+          },
+        },
+        required: ['destinatario'],
+      },
+      GuiaRemisionDetalleItem: {
+        type: 'object',
+        properties: {
+          detalle: {
+            type: 'object',
+            properties: {
+              codigoInterno: { type: 'string', example: 'P001' },
+              codigoAdicional: { type: 'string', example: 'A001' },
+              descripcion: { type: 'string', example: 'Laptop Lenovo' },
+              cantidad: { type: 'string', example: '10.00', description: 'Sin precios: solo cantidades' },
+            },
+            required: ['descripcion', 'cantidad'],
+          },
+        },
+        required: ['detalle'],
+      },
       NotaDebitoComplete: {
         type: 'object',
         properties: {
