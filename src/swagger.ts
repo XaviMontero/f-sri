@@ -418,6 +418,70 @@ export default {
         responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
       },
     },
+    '/api/v1/debit-note': {
+      get: { tags: ['Debit Note CRUD'], summary: 'List Debit Notes', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Create Nota de Débito',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebito' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/debit-note/complete': {
+      post: {
+        tags: ['Debit Note Processing'],
+        summary: 'Create Nota de Débito completa (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebitoComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/debit-note/{id}': {
+      get: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Get Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Update Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebito' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Delete Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/debit-note/{id}/pdf': {
+      get: {
+        tags: ['Debit Note Processing'],
+        summary: 'Get Nota de Débito PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
     '/api/v1/invoice-detail': {
       get: {
         tags: ['Invoice Detail Management'],
@@ -876,6 +940,91 @@ export default {
         required: ['codigo', 'codigoPorcentaje', 'tarifa', 'baseImponible', 'valor'],
       },
       NotaCredito: { type: 'object' },
+      NotaDebito: { type: 'object' },
+      NotaDebitoComplete: {
+        type: 'object',
+        properties: {
+          nota_debito: { $ref: '#/components/schemas/NotaDebitoBody' },
+        },
+        required: ['nota_debito'],
+      },
+      NotaDebitoBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoNotaDebito: { $ref: '#/components/schemas/NotaDebitoInfo' },
+          motivos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaDebitoMotivoItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoNotaDebito', 'motivos'],
+      },
+      NotaDebitoInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionComprador: { type: 'string', example: '05' },
+          identificacionComprador: { type: 'string', example: '0106079783' },
+          razonSocialComprador: { type: 'string', example: 'Juan Pérez' },
+          codDocModificado: { type: 'string', example: '01', description: 'Tabla 3 SRI. 01 = Factura' },
+          numDocModificado: { type: 'string', example: '001-001-000000123' },
+          fechaEmisionDocSustento: { type: 'string', example: '10/05/2025', description: 'Formato DD/MM/YYYY' },
+          totalSinImpuestos: { type: 'string', example: '50.00' },
+          impuestos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/FacturaDetalleImpuesto' },
+            description: 'La tarifa de IVA corresponde a la fecha de emisión del documento de sustento',
+          },
+          valorTotal: { type: 'string', example: '57.50' },
+          pagos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaDebitoPagoItem' },
+          },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionComprador',
+          'identificacionComprador',
+          'codDocModificado',
+          'numDocModificado',
+          'fechaEmisionDocSustento',
+          'totalSinImpuestos',
+          'impuestos',
+          'valorTotal',
+          'pagos',
+        ],
+      },
+      NotaDebitoPagoItem: {
+        type: 'object',
+        properties: {
+          pago: {
+            type: 'object',
+            properties: {
+              formaPago: { type: 'string', example: '20', description: 'Tabla 24 SRI' },
+              total: { type: 'string', example: '57.50' },
+              plazo: { type: 'string', example: '15' },
+              unidadTiempo: { type: 'string', example: 'dias' },
+            },
+            required: ['formaPago', 'total'],
+          },
+        },
+        required: ['pago'],
+      },
+      NotaDebitoMotivoItem: {
+        type: 'object',
+        properties: {
+          motivo: {
+            type: 'object',
+            properties: {
+              razon: { type: 'string', example: 'Interés por mora' },
+              valor: { type: 'string', example: '50.00' },
+            },
+            required: ['razon', 'valor'],
+          },
+        },
+        required: ['motivo'],
+      },
       NotaCreditoComplete: {
         type: 'object',
         properties: {
