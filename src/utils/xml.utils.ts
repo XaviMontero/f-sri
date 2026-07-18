@@ -5,6 +5,7 @@ import { IProduct } from '../models/Product';
 import { InvoiceRequest } from '../interfaces/invoice.interface';
 import { CreditNoteRequest } from '../interfaces/credit-note.interface';
 import { DebitNoteRequest } from '../interfaces/debit-note.interface';
+import { DeliveryNoteRequest } from '../interfaces/delivery-note.interface';
 
 /**
  * IVA configuration (tabla 17 de la Ficha Técnica del SRI).
@@ -530,6 +531,153 @@ export function generarXMLNotaDebito(
     .ele('campoAdicional', { nombre: 'Teléfono' })
     .txt(cliente.telefono || '0000000000')
     .up();
+
+  return doc.end({ prettyPrint: true });
+}
+
+/**
+ * Genera un documento XML para una guía de remisión electrónica según el formato
+ * v1.1.0 de la Ficha Técnica del SRI de Ecuador (codDoc 06).
+ * Documento sin valores monetarios: describe el transporte y los destinatarios.
+ * @param guiaRemision Datos de la guía de remisión
+ * @param empresa Empresa emisora
+ * @param claveAcceso Clave de acceso generada
+ * @param secuencial Número secuencial de la guía de remisión
+ * @returns XML de la guía de remisión como string
+ */
+export function generarXMLGuiaRemision(
+  guiaRemision: DeliveryNoteRequest,
+  empresa: IIssuingCompany,
+  claveAcceso: string,
+  secuencial: string,
+): string {
+  const info = guiaRemision.infoGuiaRemision;
+
+  const doc = create({ version: '1.0', encoding: 'UTF-8' })
+    .ele('guiaRemision', {
+      id: 'comprobante',
+      version: '1.1.0',
+    })
+    .ele('infoTributaria')
+    .ele('ambiente')
+    .txt(String(empresa.tipo_ambiente))
+    .up()
+    .ele('tipoEmision')
+    .txt(String(empresa.tipo_emision))
+    .up()
+    .ele('razonSocial')
+    .txt(empresa.razon_social)
+    .up()
+    .ele('nombreComercial')
+    .txt(empresa.nombre_comercial)
+    .up()
+    .ele('ruc')
+    .txt(empresa.ruc)
+    .up()
+    .ele('claveAcceso')
+    .txt(claveAcceso)
+    .up()
+    .ele('codDoc')
+    .txt('06')
+    .up() // guía de remisión
+    .ele('estab')
+    .txt(empresa.codigo_establecimiento)
+    .up()
+    .ele('ptoEmi')
+    .txt(empresa.punto_emision)
+    .up()
+    .ele('secuencial')
+    .txt(secuencial)
+    .up()
+    .ele('dirMatriz')
+    .txt(empresa.direccion_matriz || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .up()
+    .ele('infoGuiaRemision')
+    .ele('dirEstablecimiento')
+    .txt(empresa.direccion_establecimiento || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .ele('dirPartida')
+    .txt(info.dirPartida)
+    .up()
+    .ele('razonSocialTransportista')
+    .txt(info.razonSocialTransportista)
+    .up()
+    .ele('tipoIdentificacionTransportista')
+    .txt(info.tipoIdentificacionTransportista)
+    .up()
+    .ele('rucTransportista')
+    .txt(info.rucTransportista)
+    .up()
+    .ele('obligadoContabilidad')
+    .txt(empresa.obligado_contabilidad ? 'SI' : 'NO')
+    .up()
+    .ele('fechaIniTransporte')
+    .txt(info.fechaIniTransporte)
+    .up()
+    .ele('fechaFinTransporte')
+    .txt(info.fechaFinTransporte)
+    .up()
+    .ele('placa')
+    .txt(info.placa)
+    .up()
+    .up()
+    .ele('destinatarios');
+
+  // Cursor tracking: xmlbuilder2 returns a new node reference on each call,
+  // so nested loops must build from an explicitly captured parent node
+  for (const item of guiaRemision.destinatarios) {
+    const dest = item.destinatario;
+    const destNode = doc
+      .ele('destinatario')
+      .ele('identificacionDestinatario')
+      .txt(dest.identificacionDestinatario)
+      .up()
+      .ele('razonSocialDestinatario')
+      .txt(dest.razonSocialDestinatario)
+      .up()
+      .ele('dirDestinatario')
+      .txt(dest.dirDestinatario)
+      .up()
+      .ele('motivoTraslado')
+      .txt(dest.motivoTraslado)
+      .up();
+
+    if (dest.docAduaneroUnico) {
+      destNode.ele('docAduaneroUnico').txt(dest.docAduaneroUnico).up();
+    }
+    if (dest.codEstabDestino) {
+      destNode.ele('codEstabDestino').txt(dest.codEstabDestino).up();
+    }
+    if (dest.ruta) {
+      destNode.ele('ruta').txt(dest.ruta).up();
+    }
+    if (dest.codDocSustento) {
+      destNode.ele('codDocSustento').txt(dest.codDocSustento).up();
+    }
+    if (dest.numDocSustento) {
+      destNode.ele('numDocSustento').txt(dest.numDocSustento).up();
+    }
+    if (dest.numAutDocSustento) {
+      destNode.ele('numAutDocSustento').txt(dest.numAutDocSustento).up();
+    }
+    if (dest.fechaEmisionDocSustento) {
+      destNode.ele('fechaEmisionDocSustento').txt(dest.fechaEmisionDocSustento).up();
+    }
+
+    const detallesNode = destNode.ele('detalles');
+    for (const det of dest.detalles) {
+      const d = det.detalle;
+      const detalleNode = detallesNode.ele('detalle');
+      if (d.codigoInterno) {
+        detalleNode.ele('codigoInterno').txt(d.codigoInterno).up();
+      }
+      if (d.codigoAdicional) {
+        detalleNode.ele('codigoAdicional').txt(d.codigoAdicional).up();
+      }
+      detalleNode.ele('descripcion').txt(d.descripcion).up().ele('cantidad').txt(d.cantidad).up();
+    }
+  }
 
   return doc.end({ prettyPrint: true });
 }
