@@ -354,6 +354,70 @@ export default {
         responses: { '200': { description: 'Deleted' } },
       },
     },
+    '/api/v1/credit-note': {
+      get: { tags: ['Credit Note CRUD'], summary: 'List Credit Notes', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Create Nota de Crédito',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCredito' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/credit-note/complete': {
+      post: {
+        tags: ['Credit Note Processing'],
+        summary: 'Create Nota de Crédito with details (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCreditoComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/credit-note/{id}': {
+      get: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Get Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Update Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCredito' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Delete Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/credit-note/{id}/pdf': {
+      get: {
+        tags: ['Credit Note Processing'],
+        summary: 'Get Nota de Crédito PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
     '/api/v1/invoice-detail': {
       get: {
         tags: ['Invoice Detail Management'],
@@ -804,12 +868,83 @@ export default {
         type: 'object',
         properties: {
           codigo: { type: 'string', example: '2' },
-          codigoPorcentaje: { type: 'string', example: '2' },
-          tarifa: { type: 'string', example: '12.00' },
+          codigoPorcentaje: { type: 'string', example: '4', description: 'Tabla 17 SRI. 4 = IVA 15%' },
+          tarifa: { type: 'string', example: '15.00' },
           baseImponible: { type: 'string', example: '100.00' },
-          valor: { type: 'string', example: '12.00' },
+          valor: { type: 'string', example: '15.00' },
         },
         required: ['codigo', 'codigoPorcentaje', 'tarifa', 'baseImponible', 'valor'],
+      },
+      NotaCredito: { type: 'object' },
+      NotaCreditoComplete: {
+        type: 'object',
+        properties: {
+          nota_credito: { $ref: '#/components/schemas/NotaCreditoBody' },
+        },
+        required: ['nota_credito'],
+      },
+      NotaCreditoBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoNotaCredito: { $ref: '#/components/schemas/NotaCreditoInfo' },
+          detalles: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaCreditoDetalleItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoNotaCredito', 'detalles'],
+      },
+      NotaCreditoInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionComprador: { type: 'string', example: '05' },
+          identificacionComprador: { type: 'string', example: '0106079783' },
+          razonSocialComprador: { type: 'string', example: 'Juan Pérez' },
+          codDocModificado: { type: 'string', example: '01', description: 'Tabla 3 SRI. 01 = Factura' },
+          numDocModificado: { type: 'string', example: '001-001-000000123' },
+          fechaEmisionDocSustento: { type: 'string', example: '10/05/2025', description: 'Formato DD/MM/YYYY' },
+          totalSinImpuestos: { type: 'string', example: '100.00' },
+          valorModificacion: { type: 'string', example: '115.00' },
+          moneda: { type: 'string', example: 'DOLAR' },
+          motivo: { type: 'string', example: 'DEVOLUCIÓN' },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionComprador',
+          'identificacionComprador',
+          'codDocModificado',
+          'numDocModificado',
+          'fechaEmisionDocSustento',
+          'totalSinImpuestos',
+          'valorModificacion',
+          'motivo',
+        ],
+      },
+      NotaCreditoDetalleItem: {
+        type: 'object',
+        properties: {
+          detalle: { $ref: '#/components/schemas/NotaCreditoDetalleData' },
+        },
+        required: ['detalle'],
+      },
+      NotaCreditoDetalleData: {
+        type: 'object',
+        properties: {
+          codigoInterno: { type: 'string', example: 'P001' },
+          codigoAdicional: { type: 'string', example: 'A001' },
+          descripcion: { type: 'string', example: 'Laptop Lenovo' },
+          cantidad: { type: 'string', example: '1.00' },
+          precioUnitario: { type: 'string', example: '100.00' },
+          descuento: { type: 'string', example: '0.00' },
+          precioTotalSinImpuesto: { type: 'string', example: '100.00' },
+          impuestos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/FacturaDetalleImpuesto' },
+          },
+        },
+        required: ['codigoInterno', 'descripcion', 'cantidad', 'precioUnitario', 'precioTotalSinImpuesto', 'impuestos'],
       },
       UserRegistration: {
         type: 'object',
