@@ -126,29 +126,9 @@ function parseXmlResponse(xmlString: string): RespuestaSRI {
     const respuesta: RespuestaSRI = { estado };
 
     // Extract mensajes if they exist
-    const mensajesElements = xmlDoc.getElementsByTagName('mensaje');
-    if (mensajesElements.length > 0) {
-      const mensajes = [];
-      for (let i = 0; i < mensajesElements.length; i++) {
-        const mensajeElement = mensajesElements[i];
-        const identificador = mensajeElement.getElementsByTagName('identificador')[0]?.textContent || '';
-        const mensaje = mensajeElement.getElementsByTagName('mensaje')[0]?.textContent || '';
-        const tipo = mensajeElement.getElementsByTagName('tipo')[0]?.textContent || 'INFO';
-        const informacionAdicional = mensajeElement.getElementsByTagName('informacionAdicional')[0]?.textContent;
-
-        mensajes.push({
-          identificador,
-          mensaje,
-          tipo,
-          ...(informacionAdicional && { informacionAdicional }),
-        });
-      }
-
-      if (mensajes.length === 1) {
-        respuesta.mensajes = { mensaje: mensajes[0] };
-      } else if (mensajes.length > 1) {
-        respuesta.mensajes = { mensaje: mensajes };
-      }
+    const mensajesExtraidos = extraerMensajes(xmlDoc);
+    if (mensajesExtraidos) {
+      respuesta.mensajes = mensajesExtraidos;
     }
 
     // Extract comprobantes if they exist

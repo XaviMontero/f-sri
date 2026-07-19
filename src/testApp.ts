@@ -10,6 +10,7 @@ import debitNoteRoutes from './routes/debitNote';
 import deliveryNoteRoutes from './routes/deliveryNote';
 import withholdingRoutes from './routes/withholding';
 import invoiceDetailRoutes from './routes/invoiceDetail';
+import invoicePDFRoutes from './routes/invoicePDF';
 import verifyToken from './middleware/verifyToken';
 
 export function createApp() {
@@ -27,5 +28,6 @@ export function createApp() {
   app.use('/api/v1/delivery-note', deliveryNoteRoutes);
   app.use('/api/v1/withholding', withholdingRoutes);
   app.use('/api/v1/invoice-detail', invoiceDetailRoutes);
+  app.use('/api/v1/invoice-pdf', invoicePDFRoutes);
   return app;
 }

@@ -63,12 +63,16 @@ function extraerCertificadoFirmante(
 
   const keyLocalKeyId = keyBag.attributes?.localKeyId?.[0];
 
-  // Preferred: certificate whose localKeyId matches the private key's localKeyId
+  // Preferred: certificate whose localKeyId matches the private key's localKeyId.
+  // A CA certificate can never be the signer, so matches are discarded if they are CA.
   let certificado: forge.pki.Certificate | undefined;
   if (keyLocalKeyId) {
-    certificado = certBags.find((bag) => bag.cert && bag.attributes?.localKeyId?.[0] === keyLocalKeyId)?.cert as
+    const coincidencia = certBags.find((bag) => bag.cert && bag.attributes?.localKeyId?.[0] === keyLocalKeyId)?.cert as
       | forge.pki.Certificate
       | undefined;
+    if (coincidencia && !esCertificadoCA(coincidencia)) {
+      certificado = coincidencia;
+    }
   }
 
   // Fallback: first non-CA certificate
