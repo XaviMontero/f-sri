@@ -483,7 +483,11 @@ export default {
       },
     },
     '/api/v1/delivery-note': {
-      get: { tags: ['Delivery Note CRUD'], summary: 'List Delivery Notes', responses: { '200': { description: 'OK' } } },
+      get: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'List Delivery Notes',
+        responses: { '200': { description: 'OK' } },
+      },
       post: {
         tags: ['Delivery Note CRUD'],
         summary: 'Create Guía de Remisión',
@@ -661,20 +665,6 @@ export default {
         description:
           'Obtiene una lista de todos los PDFs de facturas que han sido generados automáticamente cuando el SRI confirma la recepción (estado RECIBIDA).',
         security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: 'page',
-            in: 'query',
-            schema: { type: 'integer', default: 1 },
-            description: 'Número de página',
-          },
-          {
-            name: 'limit',
-            in: 'query',
-            schema: { type: 'integer', default: 10 },
-            description: 'Elementos por página',
-          },
-        ],
         responses: {
           '200': {
             description: 'Lista de PDFs obtenida exitosamente',
@@ -707,15 +697,15 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/factura/{id}': {
+    '/api/v1/invoice-pdf/invoice/{facturaId}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por ID de factura',
-        description: 'Busca el PDF generado automáticamente para una factura específica usando su ID.',
+        description: 'Busca el registro del PDF generado automáticamente para una factura específica usando su ID.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: 'id',
+            name: 'facturaId',
             in: 'path',
             required: true,
             schema: { type: 'string' },
@@ -727,15 +717,7 @@ export default {
           '200': {
             description: 'PDF encontrado',
             content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
+              'application/json': { schema: { $ref: '#/components/schemas/InvoicePDF' } },
             },
           },
           '404': { description: 'PDF no encontrado - La factura aún no ha sido confirmada por el SRI o no existe' },
@@ -744,52 +726,11 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/{id}/download': {
-      get: {
-        tags: ['PDF Management'],
-        summary: 'Descargar archivo PDF',
-        description:
-          'Descarga el archivo PDF de una factura. El PDF se genera automáticamente cuando el SRI confirma la recepción.',
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            schema: { type: 'string' },
-            description: 'ID del documento PDF',
-            example: '64f8a1b2c3d4e5f6a7b8c9d8',
-          },
-        ],
-        responses: {
-          '200': {
-            description: 'Archivo PDF descargado',
-            content: {
-              'application/pdf': {
-                schema: {
-                  type: 'string',
-                  format: 'binary',
-                },
-              },
-            },
-            headers: {
-              'Content-Disposition': {
-                description: 'Attachment filename',
-                schema: { type: 'string', example: 'attachment; filename="factura-001-001-000000001.pdf"' },
-              },
-            },
-          },
-          '404': { description: 'PDF no encontrado o archivo no existe en el sistema' },
-          '401': { description: 'No autorizado' },
-          '500': { description: 'Error del servidor' },
-        },
-      },
-    },
-    '/api/v1/invoice-pdf/clave/{claveAcceso}': {
+    '/api/v1/invoice-pdf/access-key/{claveAcceso}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por clave de acceso',
-        description: 'Busca el PDF usando la clave de acceso de 49 dígitos de la factura electrónica.',
+        description: 'Busca el registro del PDF usando la clave de acceso de 49 dígitos de la factura electrónica.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -805,70 +746,78 @@ export default {
           '200': {
             description: 'PDF encontrado',
             content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
+              'application/json': { schema: { $ref: '#/components/schemas/InvoicePDF' } },
             },
           },
-          '400': { description: 'Clave de acceso inválida (debe tener 49 dígitos)' },
           '404': { description: 'PDF no encontrado para esta clave de acceso' },
           '401': { description: 'No autorizado' },
           '500': { description: 'Error del servidor' },
         },
       },
     },
-    '/api/v1/invoice-pdf/regenerate/{id}': {
-      post: {
+    '/api/v1/invoice-pdf/download/{claveAcceso}': {
+      get: {
         tags: ['PDF Management'],
-        summary: 'Regenerar PDF de factura',
+        summary: 'Descargar el PDF (redirección a la URL pública)',
         description:
-          'Regenera el PDF de una factura que ya fue confirmada por el SRI. Útil si el archivo se perdió o se necesita actualizar el formato.',
+          'Redirige (302) a la URL pública del PDF en el proveedor de almacenamiento configurado (Cloudinary, local, etc.).',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: 'id',
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
+          '302': { description: 'Redirección a la URL pública del PDF' },
+          '404': { description: 'PDF no encontrado o sin URL disponible' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/regenerate/{facturaId}': {
+      post: {
+        tags: ['PDF Management'],
+        summary: 'Solicitar regeneración del PDF de una factura',
+        description:
+          'Registra una solicitud de regeneración del PDF. Actualmente responde con un acuse de recibo; la regeneración automática está planificada.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'facturaId',
             in: 'path',
             required: true,
             schema: { type: 'string' },
             description: 'ID de la factura',
-            example: '64f8a1b2c3d4e5f6a7b8c9d2',
           },
         ],
         responses: {
-          '200': {
-            description: 'PDF regenerado exitosamente',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    message: { type: 'string', example: 'PDF regenerado exitosamente' },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
-            },
-          },
-          '400': { description: 'La factura no ha sido confirmada por el SRI (estado debe ser RECIBIDA)' },
-          '404': { description: 'Factura no encontrada' },
+          '200': { description: 'Solicitud de regeneración registrada' },
           '401': { description: 'No autorizado' },
-          '500': { description: 'Error del servidor al regenerar PDF' },
+          '500': { description: 'Error del servidor' },
         },
       },
     },
-    '/api/v1/invoice-pdf/bulk-download': {
+    '/api/v1/invoice-pdf/send-email/{claveAcceso}': {
       post: {
         tags: ['PDF Management'],
-        summary: 'Descarga masiva de PDFs',
-        description: 'Descarga múltiples PDFs de facturas en un archivo ZIP.',
+        summary: 'Solicitar el envío del PDF por email',
+        description:
+          'Marca el PDF para envío por email al destinatario indicado (estado PENDIENTE). El envío se procesa de forma asíncrona.',
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -876,51 +825,82 @@ export default {
               schema: {
                 type: 'object',
                 properties: {
-                  facturaIds: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Array de IDs de facturas',
-                    example: ['64f8a1b2c3d4e5f6a7b8c9d2', '64f8a1b2c3d4e5f6a7b8c9d3'],
-                  },
-                  fechaInicio: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de inicio (formato YYYY-MM-DD)',
-                    example: '2025-01-01',
-                  },
-                  fechaFin: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de fin (formato YYYY-MM-DD)',
-                    example: '2025-01-31',
-                  },
+                  email_destinatario: { type: 'string', example: 'cliente@correo.com' },
                 },
+                required: ['email_destinatario'],
               },
             },
           },
         },
         responses: {
+          '200': { description: 'Solicitud de envío encolada (estado PENDIENTE)' },
+          '400': { description: 'email_destinatario es requerido' },
+          '404': { description: 'PDF no encontrado' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/email-status/{claveAcceso}': {
+      get: {
+        tags: ['PDF Management'],
+        summary: 'Consultar el estado de envío por email de un PDF',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
           '200': {
-            description: 'Archivo ZIP con PDFs descargado',
+            description: 'Estado de envío del email',
             content: {
-              'application/zip': {
+              'application/json': {
                 schema: {
-                  type: 'string',
-                  format: 'binary',
+                  type: 'object',
+                  properties: {
+                    claveAcceso: { type: 'string' },
+                    email_estado: { type: 'string', example: 'PENDIENTE' },
+                    email_destinatario: { type: 'string' },
+                    email_fecha_envio: { type: 'string', format: 'date-time' },
+                    email_intentos: { type: 'integer' },
+                    email_ultimo_error: { type: 'string' },
+                  },
                 },
               },
             },
-            headers: {
-              'Content-Disposition': {
-                description: 'Attachment filename',
-                schema: { type: 'string', example: 'attachment; filename="facturas-2025-01.zip"' },
-              },
-            },
           },
-          '400': { description: 'Parámetros de búsqueda inválidos' },
+          '404': { description: 'PDF no encontrado' },
           '401': { description: 'No autorizado' },
-          '404': { description: 'No se encontraron PDFs para los criterios especificados' },
-          '500': { description: 'Error del servidor al generar ZIP' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/retry-email/{claveAcceso}': {
+      post: {
+        tags: ['PDF Management'],
+        summary: 'Reintentar el envío por email de un PDF',
+        description: 'Reinicia el estado de envío a PENDIENTE para un PDF cuyo email falló o no se ha enviado.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
+          '200': { description: 'Reintento de envío registrado (estado PENDIENTE)' },
+          '400': { description: 'El email ya fue enviado exitosamente' },
+          '404': { description: 'PDF no encontrado' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
         },
       },
     },
