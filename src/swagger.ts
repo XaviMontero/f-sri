@@ -546,6 +546,70 @@ export default {
         responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
       },
     },
+    '/api/v1/withholding': {
+      get: { tags: ['Withholding CRUD'], summary: 'List Withholdings', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Withholding CRUD'],
+        summary: 'Create Comprobante de Retención',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Retencion' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/withholding/complete': {
+      post: {
+        tags: ['Withholding Processing'],
+        summary: 'Create Comprobante de Retención ATS 2.0.0 completo (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/RetencionComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/withholding/{id}': {
+      get: {
+        tags: ['Withholding CRUD'],
+        summary: 'Get Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Withholding CRUD'],
+        summary: 'Update Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Retencion' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Withholding CRUD'],
+        summary: 'Delete Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/withholding/{id}/pdf': {
+      get: {
+        tags: ['Withholding Processing'],
+        summary: 'Get Comprobante de Retención PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
     '/api/v1/invoice-detail': {
       get: {
         tags: ['Invoice Detail Management'],
@@ -1006,6 +1070,140 @@ export default {
       NotaCredito: { type: 'object' },
       NotaDebito: { type: 'object' },
       GuiaRemision: { type: 'object' },
+      Retencion: { type: 'object' },
+      RetencionComplete: {
+        type: 'object',
+        properties: {
+          retencion: { $ref: '#/components/schemas/RetencionBody' },
+        },
+        required: ['retencion'],
+      },
+      RetencionBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoCompRetencion: { $ref: '#/components/schemas/RetencionInfo' },
+          docsSustento: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/RetencionDocSustentoItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoCompRetencion', 'docsSustento'],
+      },
+      RetencionInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionSujetoRetenido: { type: 'string', example: '04', description: 'Tabla 6 SRI' },
+          tipoSujetoRetenido: {
+            type: 'string',
+            example: '01',
+            description: 'Tabla 14 Catálogo ATS. Obligatorio si la identificación es del exterior',
+          },
+          parteRel: { type: 'string', example: 'NO', description: 'Parte relacionada SI/NO' },
+          razonSocialSujetoRetenido: { type: 'string', example: 'Proveedor S.A.' },
+          identificacionSujetoRetenido: { type: 'string', example: '1713328506001' },
+          periodoFiscal: { type: 'string', example: '05/2025', description: 'Formato MM/YYYY' },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionSujetoRetenido',
+          'razonSocialSujetoRetenido',
+          'identificacionSujetoRetenido',
+          'periodoFiscal',
+        ],
+      },
+      RetencionDocSustentoItem: {
+        type: 'object',
+        properties: {
+          docSustento: {
+            type: 'object',
+            properties: {
+              codSustento: { type: 'string', example: '01', description: 'Tabla 5 Catálogo ATS' },
+              codDocSustento: { type: 'string', example: '01', description: 'Tabla 4 Catálogo ATS' },
+              numDocSustento: { type: 'string', example: '001001000000123', description: '15 dígitos' },
+              fechaEmisionDocSustento: { type: 'string', example: '10/05/2025' },
+              fechaRegistroContable: { type: 'string', example: '10/05/2025' },
+              numAutDocSustento: { type: 'string', example: '1005202501179001234500110010010000001231234567818' },
+              pagoLocExt: { type: 'string', example: '01', description: 'Tabla 15 Catálogo ATS. 01 = pago local' },
+              totalSinImpuestos: { type: 'string', example: '100.00' },
+              importeTotal: { type: 'string', example: '115.00' },
+              impuestosDocSustento: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionImpuestoDocSustentoItem' },
+              },
+              retenciones: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionDetalleItem' },
+              },
+              pagos: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionPagoItem' },
+              },
+            },
+            required: [
+              'codSustento',
+              'codDocSustento',
+              'fechaEmisionDocSustento',
+              'pagoLocExt',
+              'totalSinImpuestos',
+              'importeTotal',
+              'impuestosDocSustento',
+              'retenciones',
+              'pagos',
+            ],
+          },
+        },
+        required: ['docSustento'],
+      },
+      RetencionImpuestoDocSustentoItem: {
+        type: 'object',
+        properties: {
+          impuestoDocSustento: {
+            type: 'object',
+            properties: {
+              codImpuestoDocSustento: { type: 'string', example: '2', description: 'Tabla 16 SRI. 2 = IVA' },
+              codigoPorcentaje: { type: 'string', example: '4', description: 'Tabla 17/18 SRI' },
+              baseImponible: { type: 'string', example: '100.00' },
+              tarifa: { type: 'string', example: '15' },
+              valorImpuesto: { type: 'string', example: '15.00' },
+            },
+            required: ['codImpuestoDocSustento', 'codigoPorcentaje', 'baseImponible', 'tarifa', 'valorImpuesto'],
+          },
+        },
+        required: ['impuestoDocSustento'],
+      },
+      RetencionDetalleItem: {
+        type: 'object',
+        properties: {
+          retencion: {
+            type: 'object',
+            properties: {
+              codigo: { type: 'string', example: '1', description: 'Tabla 19 SRI. 1=Renta, 2=IVA, 6=ISD' },
+              codigoRetencion: { type: 'string', example: '312', description: 'Tablas 20/21 SRI' },
+              baseImponible: { type: 'string', example: '100.00' },
+              porcentajeRetener: { type: 'string', example: '1.75' },
+              valorRetenido: { type: 'string', example: '1.75' },
+            },
+            required: ['codigo', 'codigoRetencion', 'baseImponible', 'porcentajeRetener', 'valorRetenido'],
+          },
+        },
+        required: ['retencion'],
+      },
+      RetencionPagoItem: {
+        type: 'object',
+        properties: {
+          pago: {
+            type: 'object',
+            properties: {
+              formaPago: { type: 'string', example: '01', description: 'Tabla 13 Catálogo ATS' },
+              total: { type: 'string', example: '115.00' },
+            },
+            required: ['formaPago', 'total'],
+          },
+        },
+        required: ['pago'],
+      },
       GuiaRemisionComplete: {
         type: 'object',
         properties: {

@@ -6,6 +6,7 @@ import { InvoiceRequest } from '../interfaces/invoice.interface';
 import { CreditNoteRequest } from '../interfaces/credit-note.interface';
 import { DebitNoteRequest } from '../interfaces/debit-note.interface';
 import { DeliveryNoteRequest } from '../interfaces/delivery-note.interface';
+import { WithholdingRequest } from '../interfaces/withholding.interface';
 
 interface InvoiceData {
   factura: any;
@@ -680,6 +681,190 @@ export async function generateDeliveryNotePDF(data: DeliveryNotePDFData): Promis
     const page = await browser.newPage();
     await page.setViewport({ width: 800, height: 1200 });
     await page.setContent(generateDeliveryNoteHTML(data), { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+      printBackground: true,
+    });
+
+    return Buffer.from(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw new Error(`Failed to generate PDF: ${(error as Error).message}`);
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+export interface WithholdingPDFData {
+  retencion: WithholdingRequest;
+  empresa: IIssuingCompany;
+  claveAcceso: string;
+  secuencial: string;
+  fechaEmision: Date;
+  numeroAutorizacion: string;
+  fechaAutorizacion: Date;
+}
+
+/**
+ * Generates an HTML template for the withholding certificate RIDE
+ * (printed format of version 1.0.0, as indicated in Anexo 10)
+ */
+function generateWithholdingHTML(data: WithholdingPDFData): string {
+  const { retencion, empresa, claveAcceso, secuencial, numeroAutorizacion, fechaAutorizacion } = data;
+  const info = retencion.infoCompRetencion;
+
+  const IMPUESTOS: Record<string, string> = { '1': 'RENTA', '2': 'IVA', '6': 'ISD' };
+
+  const filasRetenciones = retencion.docsSustento
+    .flatMap((item) => {
+      const ds = item.docSustento;
+      const docLabel = `${ds.codDocSustento === '01' ? 'FACTURA' : ds.codDocSustento} ${ds.numDocSustento || ''}`;
+      return ds.retenciones.map(
+        (ret) => `
+            <tr>
+              <td>${docLabel}</td>
+              <td>${ds.fechaEmisionDocSustento}</td>
+              <td>${IMPUESTOS[ret.retencion.codigo] || ret.retencion.codigo}</td>
+              <td>${ret.retencion.codigoRetencion}</td>
+              <td class="text-right">$${parseFloat(ret.retencion.baseImponible).toFixed(2)}</td>
+              <td class="text-right">${ret.retencion.porcentajeRetener}%</td>
+              <td class="text-right">$${parseFloat(ret.retencion.valorRetenido).toFixed(2)}</td>
+            </tr>`,
+      );
+    })
+    .join('');
+
+  const totalRetenido = retencion.docsSustento
+    .flatMap((item) => item.docSustento.retenciones)
+    .reduce((s, r) => s + parseFloat(r.retencion.valorRetenido), 0)
+    .toFixed(2);
+
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Comprobante de Retención Electrónico</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; padding: 10px; line-height: 1.2; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { display: flex; border: 1px solid #000; margin-bottom: 10px; }
+        .logo-section { width: 200px; padding: 10px; border-right: 1px solid #000; text-align: center; }
+        .company-info { flex: 1; padding: 10px; }
+        .document-info { width: 200px; padding: 10px; border-left: 1px solid #000; }
+        .no-logo { color: red; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
+        .ruc-box { border: 2px solid #000; padding: 5px; margin: 10px 0; text-align: center; font-weight: bold; }
+        .access-key-number { font-size: 7px; font-family: 'Courier New', monospace; margin: 5px 0; word-spacing: -1px; letter-spacing: 0.5px; line-height: 1.2; width: 100%; overflow-wrap: break-word; }
+        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .info-table td { border: 1px solid #000; padding: 3px 5px; font-size: 9px; }
+        .label { background-color: #f0f0f0; font-weight: bold; width: 140px; }
+        .details-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .details-table th, .details-table td { border: 1px solid #000; padding: 3px 5px; text-align: center; font-size: 8px; }
+        .details-table th { background-color: #f0f0f0; font-weight: bold; }
+        .text-right { text-align: right !important; }
+        .totals-table { width: 300px; margin-left: auto; border-collapse: collapse; }
+        .totals-table td { border: 1px solid #000; padding: 3px 5px; font-size: 9px; }
+        .amount { text-align: right; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo-section">
+            <div class="no-logo">NO TIENE LOGO</div>
+          </div>
+          <div class="company-info">
+            <div style="text-align: center; font-weight: bold; margin-bottom: 10px;">
+              ${empresa.razon_social}
+            </div>
+            <div><strong>Dirección Matriz:</strong> ${empresa.direccion_matriz}</div>
+            <div><strong>Dirección Sucursal:</strong> ${empresa.direccion_establecimiento}</div>
+            <div><strong>OBLIGADO A LLEVAR CONTABILIDAD:</strong> ${empresa.obligado_contabilidad ? 'SI' : 'NO'}</div>
+          </div>
+          <div class="document-info">
+            <div class="ruc-box">R.U.C.: ${empresa.ruc}</div>
+            <div style="text-align: center; font-weight: bold; margin: 10px 0;">COMPROBANTE DE RETENCIÓN</div>
+            <div><strong>No.:</strong> ${empresa.codigo_establecimiento}-${empresa.punto_emision}-${secuencial}</div>
+            <div style="margin: 10px 0;">
+              <div><strong>NÚMERO DE AUTORIZACIÓN</strong></div>
+              <div style="word-break: break-all; font-size: 8px;">${numeroAutorizacion}</div>
+            </div>
+            <div><strong>FECHA Y HORA DE AUTORIZACIÓN:</strong></div>
+            <div>${fechaAutorizacion.toLocaleDateString('es-EC')} ${fechaAutorizacion.toLocaleTimeString('es-EC')}</div>
+            <div style="margin-top: 10px;">
+              <div><strong>AMBIENTE:</strong> ${empresa.tipo_ambiente === 1 ? 'PRUEBAS' : 'PRODUCCIÓN'}</div>
+              <div><strong>EMISIÓN:</strong> ${empresa.tipo_emision === 1 ? 'NORMAL' : 'CONTINGENCIA'}</div>
+            </div>
+            <div style="margin-top: 10px;">
+              <div><strong>CLAVE DE ACCESO</strong></div>
+              <div class="access-key-number">${claveAcceso}</div>
+            </div>
+          </div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td class="label">Razón Social Sujeto Retenido</td>
+            <td>${info.razonSocialSujetoRetenido}</td>
+            <td class="label">Identificación</td>
+            <td>${info.identificacionSujetoRetenido}</td>
+          </tr>
+          <tr>
+            <td class="label">Fecha Emisión</td>
+            <td>${info.fechaEmision}</td>
+            <td class="label">Período Fiscal</td>
+            <td>${info.periodoFiscal}</td>
+          </tr>
+        </table>
+
+        <table class="details-table">
+          <thead>
+            <tr>
+              <th>Comprobante</th>
+              <th>Fecha Emisión</th>
+              <th>Impuesto</th>
+              <th>Código Retención</th>
+              <th>Base Imponible</th>
+              <th>% Retención</th>
+              <th>Valor Retenido</th>
+            </tr>
+          </thead>
+          <tbody>${filasRetenciones}
+          </tbody>
+        </table>
+
+        <table class="totals-table">
+          <tr>
+            <td class="label" style="font-weight: bold;">TOTAL RETENIDO</td>
+            <td class="amount" style="font-size: 11px;">$${totalRetenido}</td>
+          </tr>
+        </table>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Generates a PDF buffer for a withholding certificate RIDE
+ */
+export async function generateWithholdingPDF(data: WithholdingPDFData): Promise<Buffer> {
+  let browser;
+
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 800, height: 1200 });
+    await page.setContent(generateWithholdingHTML(data), { waitUntil: 'networkidle0' });
 
     const pdfBuffer = await page.pdf({
       format: 'A4',

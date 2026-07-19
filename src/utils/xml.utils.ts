@@ -6,6 +6,7 @@ import { InvoiceRequest } from '../interfaces/invoice.interface';
 import { CreditNoteRequest } from '../interfaces/credit-note.interface';
 import { DebitNoteRequest } from '../interfaces/debit-note.interface';
 import { DeliveryNoteRequest } from '../interfaces/delivery-note.interface';
+import { WithholdingRequest } from '../interfaces/withholding.interface';
 
 /**
  * IVA configuration (tabla 17 de la Ficha Técnica del SRI).
@@ -680,4 +681,190 @@ export function generarXMLGuiaRemision(
   }
 
   return doc.end({ prettyPrint: true });
+}
+
+/**
+ * Genera un documento XML para un comprobante de retención electrónico según el
+ * formato ATS v2.0.0 (Anexo 10 de la Ficha Técnica del SRI, codDoc 07).
+ * Los bloques condicionales de reembolsos, dividendos y compra de cajas de
+ * banano no están incluidos en esta versión inicial.
+ * @param retencion Datos del comprobante de retención
+ * @param empresa Empresa emisora
+ * @param claveAcceso Clave de acceso generada
+ * @param secuencial Número secuencial del comprobante
+ * @returns XML del comprobante de retención como string
+ */
+export function generarXMLRetencion(
+  retencion: WithholdingRequest,
+  empresa: IIssuingCompany,
+  claveAcceso: string,
+  secuencial: string,
+): string {
+  const info = retencion.infoCompRetencion;
+
+  const infoNode = create({ version: '1.0', encoding: 'UTF-8' })
+    .ele('comprobanteRetencion', {
+      id: 'comprobante',
+      version: '2.0.0',
+    })
+    .ele('infoTributaria')
+    .ele('ambiente')
+    .txt(String(empresa.tipo_ambiente))
+    .up()
+    .ele('tipoEmision')
+    .txt(String(empresa.tipo_emision))
+    .up()
+    .ele('razonSocial')
+    .txt(empresa.razon_social)
+    .up()
+    .ele('nombreComercial')
+    .txt(empresa.nombre_comercial)
+    .up()
+    .ele('ruc')
+    .txt(empresa.ruc)
+    .up()
+    .ele('claveAcceso')
+    .txt(claveAcceso)
+    .up()
+    .ele('codDoc')
+    .txt('07')
+    .up() // comprobante de retención
+    .ele('estab')
+    .txt(empresa.codigo_establecimiento)
+    .up()
+    .ele('ptoEmi')
+    .txt(empresa.punto_emision)
+    .up()
+    .ele('secuencial')
+    .txt(secuencial)
+    .up()
+    .ele('dirMatriz')
+    .txt(empresa.direccion_matriz || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .up()
+    .ele('infoCompRetencion')
+    .ele('fechaEmision')
+    .txt(info.fechaEmision)
+    .up()
+    .ele('dirEstablecimiento')
+    .txt(empresa.direccion_establecimiento || empresa.direccion || 'Dirección no especificada')
+    .up()
+    .ele('obligadoContabilidad')
+    .txt(empresa.obligado_contabilidad ? 'SI' : 'NO')
+    .up()
+    .ele('tipoIdentificacionSujetoRetenido')
+    .txt(info.tipoIdentificacionSujetoRetenido)
+    .up();
+
+  if (info.tipoSujetoRetenido) {
+    infoNode.ele('tipoSujetoRetenido').txt(info.tipoSujetoRetenido).up();
+  }
+  if (info.parteRel) {
+    infoNode.ele('parteRel').txt(info.parteRel).up();
+  }
+
+  const docsSustentoNode = infoNode
+    .ele('razonSocialSujetoRetenido')
+    .txt(info.razonSocialSujetoRetenido)
+    .up()
+    .ele('identificacionSujetoRetenido')
+    .txt(info.identificacionSujetoRetenido)
+    .up()
+    .ele('periodoFiscal')
+    .txt(info.periodoFiscal)
+    .up()
+    .up() // salir de <infoCompRetencion>
+    .ele('docsSustento');
+
+  // Cursor tracking: xmlbuilder2 returns a new node reference on each call,
+  // so nested loops must build from an explicitly captured parent node
+  for (const item of retencion.docsSustento) {
+    const ds = item.docSustento;
+    const docSustentoNode = docsSustentoNode
+      .ele('docSustento')
+      .ele('codSustento')
+      .txt(ds.codSustento)
+      .up()
+      .ele('codDocSustento')
+      .txt(ds.codDocSustento)
+      .up();
+
+    if (ds.numDocSustento) {
+      docSustentoNode.ele('numDocSustento').txt(ds.numDocSustento).up();
+    }
+
+    docSustentoNode.ele('fechaEmisionDocSustento').txt(ds.fechaEmisionDocSustento).up();
+
+    if (ds.fechaRegistroContable) {
+      docSustentoNode.ele('fechaRegistroContable').txt(ds.fechaRegistroContable).up();
+    }
+    if (ds.numAutDocSustento) {
+      docSustentoNode.ele('numAutDocSustento').txt(ds.numAutDocSustento).up();
+    }
+
+    docSustentoNode
+      .ele('pagoLocExt')
+      .txt(ds.pagoLocExt)
+      .up()
+      .ele('totalSinImpuestos')
+      .txt(ds.totalSinImpuestos)
+      .up()
+      .ele('importeTotal')
+      .txt(ds.importeTotal)
+      .up();
+
+    const impuestosNode = docSustentoNode.ele('impuestosDocSustento');
+    for (const imp of ds.impuestosDocSustento) {
+      const impuesto = imp.impuestoDocSustento;
+      impuestosNode
+        .ele('impuestoDocSustento')
+        .ele('codImpuestoDocSustento')
+        .txt(impuesto.codImpuestoDocSustento)
+        .up()
+        .ele('codigoPorcentaje')
+        .txt(impuesto.codigoPorcentaje)
+        .up()
+        .ele('baseImponible')
+        .txt(impuesto.baseImponible)
+        .up()
+        .ele('tarifa')
+        .txt(impuesto.tarifa)
+        .up()
+        .ele('valorImpuesto')
+        .txt(impuesto.valorImpuesto)
+        .up()
+        .up();
+    }
+
+    const retencionesNode = docSustentoNode.ele('retenciones');
+    for (const ret of ds.retenciones) {
+      const r = ret.retencion;
+      retencionesNode
+        .ele('retencion')
+        .ele('codigo')
+        .txt(r.codigo)
+        .up()
+        .ele('codigoRetencion')
+        .txt(r.codigoRetencion)
+        .up()
+        .ele('baseImponible')
+        .txt(r.baseImponible)
+        .up()
+        .ele('porcentajeRetener')
+        .txt(r.porcentajeRetener)
+        .up()
+        .ele('valorRetenido')
+        .txt(r.valorRetenido)
+        .up()
+        .up();
+    }
+
+    const pagosNode = docSustentoNode.ele('pagos');
+    for (const pg of ds.pagos) {
+      // El Anexo 10 usa la etiqueta <formapago> (minúscula) para el ATS 2.0.0
+      pagosNode.ele('pago').ele('formapago').txt(pg.pago.formaPago).up().ele('total').txt(pg.pago.total).up().up();
+    }
+  }
+
+  return docsSustentoNode.end({ prettyPrint: true });
 }

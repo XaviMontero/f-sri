@@ -8,6 +8,7 @@ import invoiceRoutes from './routes/invoice';
 import creditNoteRoutes from './routes/creditNote';
 import debitNoteRoutes from './routes/debitNote';
 import deliveryNoteRoutes from './routes/deliveryNote';
+import withholdingRoutes from './routes/withholding';
 import invoiceDetailRoutes from './routes/invoiceDetail';
 import verifyToken from './middleware/verifyToken';
 
@@ -24,6 +25,7 @@ export function createApp() {
   app.use('/api/v1/credit-note', creditNoteRoutes);
   app.use('/api/v1/debit-note', debitNoteRoutes);
   app.use('/api/v1/delivery-note', deliveryNoteRoutes);
+  app.use('/api/v1/withholding', withholdingRoutes);
   app.use('/api/v1/invoice-detail', invoiceDetailRoutes);
   return app;
 }
