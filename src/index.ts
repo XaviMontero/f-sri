@@ -1,6 +1,9 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 import express from 'express';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import { getCorsConfig } from './config/cors.config';
 import swaggerSpec from './swagger';
@@ -19,8 +22,6 @@ import invoiceDetailRoutes from './routes/invoiceDetail';
 import invoicePDFRoutes from './routes/invoicePDF';
 import verifyToken from './middleware/verifyToken';
 import corsErrorHandler from './middleware/corsErrorHandler';
-
-dotenv.config();
 
 const app = express();
 

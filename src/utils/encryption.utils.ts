@@ -1,7 +1,20 @@
 import crypto from 'crypto';
 
 const algorithm = 'aes-256-cbc';
-const key = (process.env.ENCRYPTION_KEY || '').padEnd(32, '0').slice(0, 32);
+
+const loadEncryptionKey = (): Buffer => {
+  const rawKey = process.env.ENCRYPTION_KEY;
+  if (!rawKey) {
+    throw new Error('ENCRYPTION_KEY environment variable is not set');
+  }
+  const key = Buffer.from(rawKey, 'hex');
+  if (key.length !== 32) {
+    throw new Error(`ENCRYPTION_KEY must decode to 32 bytes (64 hex characters), got ${key.length} bytes`);
+  }
+  return key;
+};
+
+const key = loadEncryptionKey();
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
