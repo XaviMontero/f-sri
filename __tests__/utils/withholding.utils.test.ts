@@ -150,9 +150,11 @@ describe('generarXMLRetencion', () => {
     expect(xml).toContain('<valorRetenido>10.50</valorRetenido>');
   });
 
-  it('includes the pagos block with the ATS formapago tag', () => {
-    // El Anexo 10 del ATS 2.0.0 usa la etiqueta <formapago> en minúscula
-    expect(xml).toContain('<formapago>01</formapago>');
+  it('includes the pagos block with the formaPago tag (camelCase per SRI XSD)', () => {
+    // El ejemplo del Anexo 10 muestra <formapago> en minúscula, pero el XSD real del SRI
+    // valida <formaPago> (el SRI devuelve error 35 con la variante en minúscula)
+    expect(xml).toContain('<formaPago>01</formaPago>');
+    expect(xml).not.toContain('<formapago>');
     expect(xml).toContain('<total>115.00</total>');
   });
 

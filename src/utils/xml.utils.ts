@@ -865,8 +865,9 @@ export function generarXMLRetencion(
 
     const pagosNode = docSustentoNode.ele('pagos');
     for (const pg of ds.pagos) {
-      // El Anexo 10 usa la etiqueta <formapago> (minúscula) para el ATS 2.0.0
-      pagosNode.ele('pago').ele('formapago').txt(pg.pago.formaPago).up().ele('total').txt(pg.pago.total).up().up();
+      // El ejemplo del Anexo 10 muestra <formapago> en minúscula, pero es un error de la
+      // ficha técnica: el XSD del SRI exige <formaPago> (error 35 si se envía en minúscula)
+      pagosNode.ele('pago').ele('formaPago').txt(pg.pago.formaPago).up().ele('total').txt(pg.pago.total).up().up();
     }
   }
 
