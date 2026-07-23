@@ -354,6 +354,266 @@ export default {
         responses: { '200': { description: 'Deleted' } },
       },
     },
+    '/api/v1/credit-note': {
+      get: { tags: ['Credit Note CRUD'], summary: 'List Credit Notes', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Create Nota de Crédito',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCredito' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/credit-note/complete': {
+      post: {
+        tags: ['Credit Note Processing'],
+        summary: 'Create Nota de Crédito with details (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCreditoComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/credit-note/{id}': {
+      get: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Get Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Update Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaCredito' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Credit Note CRUD'],
+        summary: 'Delete Nota de Crédito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/credit-note/{id}/pdf': {
+      get: {
+        tags: ['Credit Note Processing'],
+        summary: 'Get Nota de Crédito PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/debit-note': {
+      get: { tags: ['Debit Note CRUD'], summary: 'List Debit Notes', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Create Nota de Débito',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebito' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/debit-note/complete': {
+      post: {
+        tags: ['Debit Note Processing'],
+        summary: 'Create Nota de Débito completa (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebitoComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/debit-note/{id}': {
+      get: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Get Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Update Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/NotaDebito' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Debit Note CRUD'],
+        summary: 'Delete Nota de Débito',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/debit-note/{id}/pdf': {
+      get: {
+        tags: ['Debit Note Processing'],
+        summary: 'Get Nota de Débito PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/delivery-note': {
+      get: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'List Delivery Notes',
+        responses: { '200': { description: 'OK' } },
+      },
+      post: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Create Guía de Remisión',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemision' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/delivery-note/complete': {
+      post: {
+        tags: ['Delivery Note Processing'],
+        summary: 'Create Guía de Remisión completa (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemisionComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/delivery-note/{id}': {
+      get: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Get Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Update Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/GuiaRemision' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Delivery Note CRUD'],
+        summary: 'Delete Guía de Remisión',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/delivery-note/{id}/pdf': {
+      get: {
+        tags: ['Delivery Note Processing'],
+        summary: 'Get Guía de Remisión PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/withholding': {
+      get: { tags: ['Withholding CRUD'], summary: 'List Withholdings', responses: { '200': { description: 'OK' } } },
+      post: {
+        tags: ['Withholding CRUD'],
+        summary: 'Create Comprobante de Retención',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Retencion' } },
+          },
+        },
+        responses: { '201': { description: 'Created' } },
+      },
+    },
+    '/api/v1/withholding/complete': {
+      post: {
+        tags: ['Withholding Processing'],
+        summary: 'Create Comprobante de Retención ATS 2.0.0 completo (XML, firma, envío y autorización SRI)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/RetencionComplete' } },
+          },
+        },
+        responses: {
+          '201': { description: 'Created' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
+    '/api/v1/withholding/{id}': {
+      get: {
+        tags: ['Withholding CRUD'],
+        summary: 'Get Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Withholding CRUD'],
+        summary: 'Update Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/Retencion' } },
+          },
+        },
+        responses: { '200': { description: 'Updated' }, '404': { description: 'Not found' } },
+      },
+      delete: {
+        tags: ['Withholding CRUD'],
+        summary: 'Delete Comprobante de Retención',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '404': { description: 'Not found' } },
+      },
+    },
+    '/api/v1/withholding/{id}/pdf': {
+      get: {
+        tags: ['Withholding Processing'],
+        summary: 'Get Comprobante de Retención PDF (RIDE) info',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } },
+      },
+    },
     '/api/v1/invoice-detail': {
       get: {
         tags: ['Invoice Detail Management'],
@@ -405,20 +665,6 @@ export default {
         description:
           'Obtiene una lista de todos los PDFs de facturas que han sido generados automáticamente cuando el SRI confirma la recepción (estado RECIBIDA).',
         security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: 'page',
-            in: 'query',
-            schema: { type: 'integer', default: 1 },
-            description: 'Número de página',
-          },
-          {
-            name: 'limit',
-            in: 'query',
-            schema: { type: 'integer', default: 10 },
-            description: 'Elementos por página',
-          },
-        ],
         responses: {
           '200': {
             description: 'Lista de PDFs obtenida exitosamente',
@@ -451,15 +697,15 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/factura/{id}': {
+    '/api/v1/invoice-pdf/invoice/{facturaId}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por ID de factura',
-        description: 'Busca el PDF generado automáticamente para una factura específica usando su ID.',
+        description: 'Busca el registro del PDF generado automáticamente para una factura específica usando su ID.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: 'id',
+            name: 'facturaId',
             in: 'path',
             required: true,
             schema: { type: 'string' },
@@ -471,15 +717,7 @@ export default {
           '200': {
             description: 'PDF encontrado',
             content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
+              'application/json': { schema: { $ref: '#/components/schemas/InvoicePDF' } },
             },
           },
           '404': { description: 'PDF no encontrado - La factura aún no ha sido confirmada por el SRI o no existe' },
@@ -488,52 +726,11 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/{id}/download': {
-      get: {
-        tags: ['PDF Management'],
-        summary: 'Descargar archivo PDF',
-        description:
-          'Descarga el archivo PDF de una factura. El PDF se genera automáticamente cuando el SRI confirma la recepción.',
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            schema: { type: 'string' },
-            description: 'ID del documento PDF',
-            example: '64f8a1b2c3d4e5f6a7b8c9d8',
-          },
-        ],
-        responses: {
-          '200': {
-            description: 'Archivo PDF descargado',
-            content: {
-              'application/pdf': {
-                schema: {
-                  type: 'string',
-                  format: 'binary',
-                },
-              },
-            },
-            headers: {
-              'Content-Disposition': {
-                description: 'Attachment filename',
-                schema: { type: 'string', example: 'attachment; filename="factura-001-001-000000001.pdf"' },
-              },
-            },
-          },
-          '404': { description: 'PDF no encontrado o archivo no existe en el sistema' },
-          '401': { description: 'No autorizado' },
-          '500': { description: 'Error del servidor' },
-        },
-      },
-    },
-    '/api/v1/invoice-pdf/clave/{claveAcceso}': {
+    '/api/v1/invoice-pdf/access-key/{claveAcceso}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por clave de acceso',
-        description: 'Busca el PDF usando la clave de acceso de 49 dígitos de la factura electrónica.',
+        description: 'Busca el registro del PDF usando la clave de acceso de 49 dígitos de la factura electrónica.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -549,70 +746,78 @@ export default {
           '200': {
             description: 'PDF encontrado',
             content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
+              'application/json': { schema: { $ref: '#/components/schemas/InvoicePDF' } },
             },
           },
-          '400': { description: 'Clave de acceso inválida (debe tener 49 dígitos)' },
           '404': { description: 'PDF no encontrado para esta clave de acceso' },
           '401': { description: 'No autorizado' },
           '500': { description: 'Error del servidor' },
         },
       },
     },
-    '/api/v1/invoice-pdf/regenerate/{id}': {
-      post: {
+    '/api/v1/invoice-pdf/download/{claveAcceso}': {
+      get: {
         tags: ['PDF Management'],
-        summary: 'Regenerar PDF de factura',
+        summary: 'Descargar el PDF (redirección a la URL pública)',
         description:
-          'Regenera el PDF de una factura que ya fue confirmada por el SRI. Útil si el archivo se perdió o se necesita actualizar el formato.',
+          'Redirige (302) a la URL pública del PDF en el proveedor de almacenamiento configurado (Cloudinary, local, etc.).',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: 'id',
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
+          '302': { description: 'Redirección a la URL pública del PDF' },
+          '404': { description: 'PDF no encontrado o sin URL disponible' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/regenerate/{facturaId}': {
+      post: {
+        tags: ['PDF Management'],
+        summary: 'Solicitar regeneración del PDF de una factura',
+        description:
+          'Registra una solicitud de regeneración del PDF. Actualmente responde con un acuse de recibo; la regeneración automática está planificada.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'facturaId',
             in: 'path',
             required: true,
             schema: { type: 'string' },
             description: 'ID de la factura',
-            example: '64f8a1b2c3d4e5f6a7b8c9d2',
           },
         ],
         responses: {
-          '200': {
-            description: 'PDF regenerado exitosamente',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    message: { type: 'string', example: 'PDF regenerado exitosamente' },
-                    data: { $ref: '#/components/schemas/InvoicePDF' },
-                  },
-                },
-              },
-            },
-          },
-          '400': { description: 'La factura no ha sido confirmada por el SRI (estado debe ser RECIBIDA)' },
-          '404': { description: 'Factura no encontrada' },
+          '200': { description: 'Solicitud de regeneración registrada' },
           '401': { description: 'No autorizado' },
-          '500': { description: 'Error del servidor al regenerar PDF' },
+          '500': { description: 'Error del servidor' },
         },
       },
     },
-    '/api/v1/invoice-pdf/bulk-download': {
+    '/api/v1/invoice-pdf/send-email/{claveAcceso}': {
       post: {
         tags: ['PDF Management'],
-        summary: 'Descarga masiva de PDFs',
-        description: 'Descarga múltiples PDFs de facturas en un archivo ZIP.',
+        summary: 'Solicitar el envío del PDF por email',
+        description:
+          'Marca el PDF para envío por email al destinatario indicado (estado PENDIENTE). El envío se procesa de forma asíncrona.',
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -620,51 +825,82 @@ export default {
               schema: {
                 type: 'object',
                 properties: {
-                  facturaIds: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Array de IDs de facturas',
-                    example: ['64f8a1b2c3d4e5f6a7b8c9d2', '64f8a1b2c3d4e5f6a7b8c9d3'],
-                  },
-                  fechaInicio: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de inicio (formato YYYY-MM-DD)',
-                    example: '2025-01-01',
-                  },
-                  fechaFin: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de fin (formato YYYY-MM-DD)',
-                    example: '2025-01-31',
-                  },
+                  email_destinatario: { type: 'string', example: 'cliente@correo.com' },
                 },
+                required: ['email_destinatario'],
               },
             },
           },
         },
         responses: {
+          '200': { description: 'Solicitud de envío encolada (estado PENDIENTE)' },
+          '400': { description: 'email_destinatario es requerido' },
+          '404': { description: 'PDF no encontrado' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/email-status/{claveAcceso}': {
+      get: {
+        tags: ['PDF Management'],
+        summary: 'Consultar el estado de envío por email de un PDF',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
           '200': {
-            description: 'Archivo ZIP con PDFs descargado',
+            description: 'Estado de envío del email',
             content: {
-              'application/zip': {
+              'application/json': {
                 schema: {
-                  type: 'string',
-                  format: 'binary',
+                  type: 'object',
+                  properties: {
+                    claveAcceso: { type: 'string' },
+                    email_estado: { type: 'string', example: 'PENDIENTE' },
+                    email_destinatario: { type: 'string' },
+                    email_fecha_envio: { type: 'string', format: 'date-time' },
+                    email_intentos: { type: 'integer' },
+                    email_ultimo_error: { type: 'string' },
+                  },
                 },
               },
             },
-            headers: {
-              'Content-Disposition': {
-                description: 'Attachment filename',
-                schema: { type: 'string', example: 'attachment; filename="facturas-2025-01.zip"' },
-              },
-            },
           },
-          '400': { description: 'Parámetros de búsqueda inválidos' },
+          '404': { description: 'PDF no encontrado' },
           '401': { description: 'No autorizado' },
-          '404': { description: 'No se encontraron PDFs para los criterios especificados' },
-          '500': { description: 'Error del servidor al generar ZIP' },
+          '500': { description: 'Error del servidor' },
+        },
+      },
+    },
+    '/api/v1/invoice-pdf/retry-email/{claveAcceso}': {
+      post: {
+        tags: ['PDF Management'],
+        summary: 'Reintentar el envío por email de un PDF',
+        description: 'Reinicia el estado de envío a PENDIENTE para un PDF cuyo email falló o no se ha enviado.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'claveAcceso',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', minLength: 49, maxLength: 49 },
+            description: 'Clave de acceso de 49 dígitos de la factura',
+          },
+        ],
+        responses: {
+          '200': { description: 'Reintento de envío registrado (estado PENDIENTE)' },
+          '400': { description: 'El email ya fue enviado exitosamente' },
+          '404': { description: 'PDF no encontrado' },
+          '401': { description: 'No autorizado' },
+          '500': { description: 'Error del servidor' },
         },
       },
     },
@@ -804,12 +1040,396 @@ export default {
         type: 'object',
         properties: {
           codigo: { type: 'string', example: '2' },
-          codigoPorcentaje: { type: 'string', example: '2' },
-          tarifa: { type: 'string', example: '12.00' },
+          codigoPorcentaje: { type: 'string', example: '4', description: 'Tabla 17 SRI. 4 = IVA 15%' },
+          tarifa: { type: 'string', example: '15.00' },
           baseImponible: { type: 'string', example: '100.00' },
-          valor: { type: 'string', example: '12.00' },
+          valor: { type: 'string', example: '15.00' },
         },
         required: ['codigo', 'codigoPorcentaje', 'tarifa', 'baseImponible', 'valor'],
+      },
+      NotaCredito: { type: 'object' },
+      NotaDebito: { type: 'object' },
+      GuiaRemision: { type: 'object' },
+      Retencion: { type: 'object' },
+      RetencionComplete: {
+        type: 'object',
+        properties: {
+          retencion: { $ref: '#/components/schemas/RetencionBody' },
+        },
+        required: ['retencion'],
+      },
+      RetencionBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoCompRetencion: { $ref: '#/components/schemas/RetencionInfo' },
+          docsSustento: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/RetencionDocSustentoItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoCompRetencion', 'docsSustento'],
+      },
+      RetencionInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionSujetoRetenido: { type: 'string', example: '04', description: 'Tabla 6 SRI' },
+          tipoSujetoRetenido: {
+            type: 'string',
+            example: '01',
+            description: 'Tabla 14 Catálogo ATS. Obligatorio si la identificación es del exterior',
+          },
+          parteRel: { type: 'string', example: 'NO', description: 'Parte relacionada SI/NO' },
+          razonSocialSujetoRetenido: { type: 'string', example: 'Proveedor S.A.' },
+          identificacionSujetoRetenido: { type: 'string', example: '1713328506001' },
+          periodoFiscal: { type: 'string', example: '05/2025', description: 'Formato MM/YYYY' },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionSujetoRetenido',
+          'razonSocialSujetoRetenido',
+          'identificacionSujetoRetenido',
+          'periodoFiscal',
+        ],
+      },
+      RetencionDocSustentoItem: {
+        type: 'object',
+        properties: {
+          docSustento: {
+            type: 'object',
+            properties: {
+              codSustento: { type: 'string', example: '01', description: 'Tabla 5 Catálogo ATS' },
+              codDocSustento: { type: 'string', example: '01', description: 'Tabla 4 Catálogo ATS' },
+              numDocSustento: { type: 'string', example: '001001000000123', description: '15 dígitos' },
+              fechaEmisionDocSustento: { type: 'string', example: '10/05/2025' },
+              fechaRegistroContable: { type: 'string', example: '10/05/2025' },
+              numAutDocSustento: { type: 'string', example: '1005202501179001234500110010010000001231234567818' },
+              pagoLocExt: { type: 'string', example: '01', description: 'Tabla 15 Catálogo ATS. 01 = pago local' },
+              totalSinImpuestos: { type: 'string', example: '100.00' },
+              importeTotal: { type: 'string', example: '115.00' },
+              impuestosDocSustento: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionImpuestoDocSustentoItem' },
+              },
+              retenciones: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionDetalleItem' },
+              },
+              pagos: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/RetencionPagoItem' },
+              },
+            },
+            required: [
+              'codSustento',
+              'codDocSustento',
+              'fechaEmisionDocSustento',
+              'pagoLocExt',
+              'totalSinImpuestos',
+              'importeTotal',
+              'impuestosDocSustento',
+              'retenciones',
+              'pagos',
+            ],
+          },
+        },
+        required: ['docSustento'],
+      },
+      RetencionImpuestoDocSustentoItem: {
+        type: 'object',
+        properties: {
+          impuestoDocSustento: {
+            type: 'object',
+            properties: {
+              codImpuestoDocSustento: { type: 'string', example: '2', description: 'Tabla 16 SRI. 2 = IVA' },
+              codigoPorcentaje: { type: 'string', example: '4', description: 'Tabla 17/18 SRI' },
+              baseImponible: { type: 'string', example: '100.00' },
+              tarifa: { type: 'string', example: '15' },
+              valorImpuesto: { type: 'string', example: '15.00' },
+            },
+            required: ['codImpuestoDocSustento', 'codigoPorcentaje', 'baseImponible', 'tarifa', 'valorImpuesto'],
+          },
+        },
+        required: ['impuestoDocSustento'],
+      },
+      RetencionDetalleItem: {
+        type: 'object',
+        properties: {
+          retencion: {
+            type: 'object',
+            properties: {
+              codigo: { type: 'string', example: '1', description: 'Tabla 19 SRI. 1=Renta, 2=IVA, 6=ISD' },
+              codigoRetencion: { type: 'string', example: '312', description: 'Tablas 20/21 SRI' },
+              baseImponible: { type: 'string', example: '100.00' },
+              porcentajeRetener: { type: 'string', example: '1.75' },
+              valorRetenido: { type: 'string', example: '1.75' },
+            },
+            required: ['codigo', 'codigoRetencion', 'baseImponible', 'porcentajeRetener', 'valorRetenido'],
+          },
+        },
+        required: ['retencion'],
+      },
+      RetencionPagoItem: {
+        type: 'object',
+        properties: {
+          pago: {
+            type: 'object',
+            properties: {
+              formaPago: { type: 'string', example: '01', description: 'Tabla 13 Catálogo ATS' },
+              total: { type: 'string', example: '115.00' },
+            },
+            required: ['formaPago', 'total'],
+          },
+        },
+        required: ['pago'],
+      },
+      GuiaRemisionComplete: {
+        type: 'object',
+        properties: {
+          guia_remision: { $ref: '#/components/schemas/GuiaRemisionBody' },
+        },
+        required: ['guia_remision'],
+      },
+      GuiaRemisionBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoGuiaRemision: { $ref: '#/components/schemas/GuiaRemisionInfo' },
+          destinatarios: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/GuiaRemisionDestinatarioItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoGuiaRemision', 'destinatarios'],
+      },
+      GuiaRemisionInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: {
+            type: 'string',
+            example: '17/05/2025',
+            description: 'Formato DD/MM/YYYY. Se usa para la clave de acceso',
+          },
+          dirPartida: { type: 'string', example: 'Av. Eloy Alfaro 34 y Av. Libertad' },
+          razonSocialTransportista: { type: 'string', example: 'Transportes S.A.' },
+          tipoIdentificacionTransportista: { type: 'string', example: '04', description: 'Tabla 6 SRI' },
+          rucTransportista: { type: 'string', example: '1796875790001' },
+          fechaIniTransporte: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          fechaFinTransporte: { type: 'string', example: '18/05/2025', description: 'Formato DD/MM/YYYY' },
+          placa: { type: 'string', example: 'MCL0827' },
+        },
+        required: [
+          'fechaEmision',
+          'dirPartida',
+          'razonSocialTransportista',
+          'tipoIdentificacionTransportista',
+          'rucTransportista',
+          'fechaIniTransporte',
+          'fechaFinTransporte',
+          'placa',
+        ],
+      },
+      GuiaRemisionDestinatarioItem: {
+        type: 'object',
+        properties: {
+          destinatario: {
+            type: 'object',
+            properties: {
+              identificacionDestinatario: { type: 'string', example: '1716849140001' },
+              razonSocialDestinatario: { type: 'string', example: 'Juan Pérez' },
+              dirDestinatario: { type: 'string', example: 'Av. Simón Bolívar S/N' },
+              motivoTraslado: { type: 'string', example: 'Venta de mercadería' },
+              ruta: { type: 'string', example: 'Quito - Cayambe - Otavalo' },
+              codDocSustento: { type: 'string', example: '01', description: 'Tabla 3 SRI' },
+              numDocSustento: { type: 'string', example: '001-001-000000123' },
+              numAutDocSustento: { type: 'string', example: '1705202501179001234500110010010000000011234567810' },
+              fechaEmisionDocSustento: { type: 'string', example: '17/05/2025' },
+              detalles: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/GuiaRemisionDetalleItem' },
+              },
+            },
+            required: [
+              'identificacionDestinatario',
+              'razonSocialDestinatario',
+              'dirDestinatario',
+              'motivoTraslado',
+              'detalles',
+            ],
+          },
+        },
+        required: ['destinatario'],
+      },
+      GuiaRemisionDetalleItem: {
+        type: 'object',
+        properties: {
+          detalle: {
+            type: 'object',
+            properties: {
+              codigoInterno: { type: 'string', example: 'P001' },
+              codigoAdicional: { type: 'string', example: 'A001' },
+              descripcion: { type: 'string', example: 'Laptop Lenovo' },
+              cantidad: { type: 'string', example: '10.00', description: 'Sin precios: solo cantidades' },
+            },
+            required: ['descripcion', 'cantidad'],
+          },
+        },
+        required: ['detalle'],
+      },
+      NotaDebitoComplete: {
+        type: 'object',
+        properties: {
+          nota_debito: { $ref: '#/components/schemas/NotaDebitoBody' },
+        },
+        required: ['nota_debito'],
+      },
+      NotaDebitoBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoNotaDebito: { $ref: '#/components/schemas/NotaDebitoInfo' },
+          motivos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaDebitoMotivoItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoNotaDebito', 'motivos'],
+      },
+      NotaDebitoInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionComprador: { type: 'string', example: '05' },
+          identificacionComprador: { type: 'string', example: '0106079783' },
+          razonSocialComprador: { type: 'string', example: 'Juan Pérez' },
+          codDocModificado: { type: 'string', example: '01', description: 'Tabla 3 SRI. 01 = Factura' },
+          numDocModificado: { type: 'string', example: '001-001-000000123' },
+          fechaEmisionDocSustento: { type: 'string', example: '10/05/2025', description: 'Formato DD/MM/YYYY' },
+          totalSinImpuestos: { type: 'string', example: '50.00' },
+          impuestos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/FacturaDetalleImpuesto' },
+            description: 'La tarifa de IVA corresponde a la fecha de emisión del documento de sustento',
+          },
+          valorTotal: { type: 'string', example: '57.50' },
+          pagos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaDebitoPagoItem' },
+          },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionComprador',
+          'identificacionComprador',
+          'codDocModificado',
+          'numDocModificado',
+          'fechaEmisionDocSustento',
+          'totalSinImpuestos',
+          'impuestos',
+          'valorTotal',
+          'pagos',
+        ],
+      },
+      NotaDebitoPagoItem: {
+        type: 'object',
+        properties: {
+          pago: {
+            type: 'object',
+            properties: {
+              formaPago: { type: 'string', example: '20', description: 'Tabla 24 SRI' },
+              total: { type: 'string', example: '57.50' },
+              plazo: { type: 'string', example: '15' },
+              unidadTiempo: { type: 'string', example: 'dias' },
+            },
+            required: ['formaPago', 'total'],
+          },
+        },
+        required: ['pago'],
+      },
+      NotaDebitoMotivoItem: {
+        type: 'object',
+        properties: {
+          motivo: {
+            type: 'object',
+            properties: {
+              razon: { type: 'string', example: 'Interés por mora' },
+              valor: { type: 'string', example: '50.00' },
+            },
+            required: ['razon', 'valor'],
+          },
+        },
+        required: ['motivo'],
+      },
+      NotaCreditoComplete: {
+        type: 'object',
+        properties: {
+          nota_credito: { $ref: '#/components/schemas/NotaCreditoBody' },
+        },
+        required: ['nota_credito'],
+      },
+      NotaCreditoBody: {
+        type: 'object',
+        properties: {
+          infoTributaria: { $ref: '#/components/schemas/FacturaInfoTributaria' },
+          infoNotaCredito: { $ref: '#/components/schemas/NotaCreditoInfo' },
+          detalles: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NotaCreditoDetalleItem' },
+          },
+        },
+        required: ['infoTributaria', 'infoNotaCredito', 'detalles'],
+      },
+      NotaCreditoInfo: {
+        type: 'object',
+        properties: {
+          fechaEmision: { type: 'string', example: '17/05/2025', description: 'Formato DD/MM/YYYY' },
+          tipoIdentificacionComprador: { type: 'string', example: '05' },
+          identificacionComprador: { type: 'string', example: '0106079783' },
+          razonSocialComprador: { type: 'string', example: 'Juan Pérez' },
+          codDocModificado: { type: 'string', example: '01', description: 'Tabla 3 SRI. 01 = Factura' },
+          numDocModificado: { type: 'string', example: '001-001-000000123' },
+          fechaEmisionDocSustento: { type: 'string', example: '10/05/2025', description: 'Formato DD/MM/YYYY' },
+          totalSinImpuestos: { type: 'string', example: '100.00' },
+          valorModificacion: { type: 'string', example: '115.00' },
+          moneda: { type: 'string', example: 'DOLAR' },
+          motivo: { type: 'string', example: 'DEVOLUCIÓN' },
+        },
+        required: [
+          'fechaEmision',
+          'tipoIdentificacionComprador',
+          'identificacionComprador',
+          'codDocModificado',
+          'numDocModificado',
+          'fechaEmisionDocSustento',
+          'totalSinImpuestos',
+          'valorModificacion',
+          'motivo',
+        ],
+      },
+      NotaCreditoDetalleItem: {
+        type: 'object',
+        properties: {
+          detalle: { $ref: '#/components/schemas/NotaCreditoDetalleData' },
+        },
+        required: ['detalle'],
+      },
+      NotaCreditoDetalleData: {
+        type: 'object',
+        properties: {
+          codigoInterno: { type: 'string', example: 'P001' },
+          codigoAdicional: { type: 'string', example: 'A001' },
+          descripcion: { type: 'string', example: 'Laptop Lenovo' },
+          cantidad: { type: 'string', example: '1.00' },
+          precioUnitario: { type: 'string', example: '100.00' },
+          descuento: { type: 'string', example: '0.00' },
+          precioTotalSinImpuesto: { type: 'string', example: '100.00' },
+          impuestos: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/FacturaDetalleImpuesto' },
+          },
+        },
+        required: ['codigoInterno', 'descripcion', 'cantidad', 'precioUnitario', 'precioTotalSinImpuesto', 'impuestos'],
       },
       UserRegistration: {
         type: 'object',

@@ -1,89 +1,133 @@
 import fs from 'fs';
-import { DOMParser } from '@xmldom/xmldom';
-import { SignedXml } from 'xml-crypto';
 import forge from 'node-forge';
+import {
+  signInvoiceXml,
+  signCreditNoteXml,
+  signDebitNoteXml,
+  signDeliveryGuideXml,
+  signWithholdingCertificateXml,
+} from 'ec-sri-invoice-signer';
 
-interface KeyInfoProvider {
-  getKeyInfo(): string;
+/**
+ * Códigos de tipo de documento según la tabla 3 de la Ficha Técnica del SRI
+ */
+export type TipoDocumento = '01' | '04' | '05' | '06' | '07';
+
+type SignerFn = (xml: string, p12Data: Buffer, options?: { pkcs12Password?: string }) => string;
+
+const FIRMADORES: Record<TipoDocumento, SignerFn> = {
+  '01': signInvoiceXml,
+  '04': signCreditNoteXml,
+  '05': signDebitNoteXml,
+  '06': signDeliveryGuideXml,
+  '07': signWithholdingCertificateXml,
+};
+
+/**
+ * Determines whether a certificate is a CA certificate (part of the chain, not the signer)
+ */
+function esCertificadoCA(cert: forge.pki.Certificate): boolean {
+  const basicConstraints = cert.getExtension('basicConstraints') as { cA?: boolean } | null;
+  if (basicConstraints && typeof basicConstraints.cA === 'boolean') {
+    return basicConstraints.cA;
+  }
+  // Fallback heuristic for certificates without basicConstraints
+  const cn = cert.subject.getField({ shortName: 'CN' })?.value || '';
+  return cn.includes('AUTORIDAD') || cn.startsWith('AC ');
 }
 
 /**
- * Firma un documento XML usando un certificado PEM
- * @param xmlString String del XML a firmar
- * @param pemPath Ruta al archivo PEM del certificado
- * @param password Contraseña del certificado (opcional para PEM)
+ * Extracts the signing certificate and its private key from a P12 file.
+ * Ecuadorian P12 files (BCE, Security Data, etc.) usually bundle the CA chain,
+ * so the signer certificate is selected by matching the private key's localKeyId,
+ * with a fallback to the first non-CA certificate.
+ */
+function extraerCertificadoFirmante(
+  p12Buffer: Buffer,
+  password: string,
+): { certificado: forge.pki.Certificate; clavePrivada: forge.pki.PrivateKey } {
+  const p12Der = forge.util.decode64(p12Buffer.toString('base64'));
+  const p12Asn1 = forge.asn1.fromDer(p12Der);
+  const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, true, password);
+
+  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
+  const keyBags = [
+    ...(p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag] || []),
+    ...(p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag] || []),
+  ];
+
+  const keyBag = keyBags[0];
+  if (!keyBag || !keyBag.key) {
+    throw new Error('No se encontró una clave privada en el archivo P12');
+  }
+
+  const keyLocalKeyId = keyBag.attributes?.localKeyId?.[0];
+
+  // Preferred: certificate whose localKeyId matches the private key's localKeyId.
+  // A CA certificate can never be the signer, so matches are discarded if they are CA.
+  let certificado: forge.pki.Certificate | undefined;
+  if (keyLocalKeyId) {
+    const coincidencia = certBags.find((bag) => bag.cert && bag.attributes?.localKeyId?.[0] === keyLocalKeyId)?.cert as
+      | forge.pki.Certificate
+      | undefined;
+    if (coincidencia && !esCertificadoCA(coincidencia)) {
+      certificado = coincidencia;
+    }
+  }
+
+  // Fallback: first non-CA certificate
+  if (!certificado) {
+    certificado = certBags.find((bag) => bag.cert && !esCertificadoCA(bag.cert))?.cert as
+      | forge.pki.Certificate
+      | undefined;
+  }
+
+  // Last resort: first certificate available
+  if (!certificado) {
+    certificado = certBags[0]?.cert as forge.pki.Certificate | undefined;
+  }
+
+  if (!certificado) {
+    throw new Error('No se encontró el certificado de firma digital en el archivo P12');
+  }
+
+  return { certificado, clavePrivada: keyBag.key };
+}
+
+/**
+ * Firma un documento XML según el estándar XAdES-BES exigido por el SRI,
+ * usando la librería ec-sri-invoice-signer.
+ *
+ * Se reconstruye un P12 mínimo (certificado firmante + clave privada) para evitar
+ * ambigüedad cuando el archivo original incluye la cadena de certificados de la CA.
+ *
+ * @param xmlString String del XML a firmar (nodo raíz con id="comprobante")
+ * @param p12Path Ruta al archivo P12 del certificado digital
+ * @param password Contraseña del certificado P12
+ * @param tipoDocumento Código del tipo de documento (tabla 3 del SRI). Por defecto '01' (factura)
  * @returns String del XML firmado
  */
-export async function firmarXML(xmlString: string, pemPath: string, password: string): Promise<string> {
+export async function firmarXML(
+  xmlString: string,
+  p12Path: string,
+  password: string,
+  tipoDocumento: TipoDocumento = '01',
+): Promise<string> {
   try {
-    // Read PEM file
-    const pemData = fs.readFileSync(pemPath, 'utf8');
+    const p12Buffer = fs.readFileSync(p12Path);
+    const { certificado, clavePrivada } = extraerCertificadoFirmante(p12Buffer, password || '');
 
-    // Parse the PEM certificate
-    const certPart = pemData.split('-----BEGIN CERTIFICATE-----')[1]?.split('-----END CERTIFICATE-----')[0];
-    if (!certPart) {
-      throw new Error('No se pudo encontrar el certificado en el archivo PEM');
+    // Minimal P12 with only the signing certificate and its key
+    const p12MinimoAsn1 = forge.pkcs12.toPkcs12Asn1(clavePrivada, certificado, password || '');
+    const p12MinimoDer = forge.asn1.toDer(p12MinimoAsn1).getBytes();
+    const p12Minimo = Buffer.from(p12MinimoDer, 'binary');
+
+    const firmador = FIRMADORES[tipoDocumento];
+    if (!firmador) {
+      throw new Error(`Tipo de documento no soportado para firma: ${tipoDocumento}`);
     }
 
-    const certPem = `-----BEGIN CERTIFICATE-----${certPart}-----END CERTIFICATE-----`;
-
-    try {
-      const certificate = forge.pki.certificateFromPem(certPem);
-    } catch (e) {
-      console.error('Error parsing certificate:', e);
-      throw new Error('Error al parsear el certificado: ' + (e as Error).message);
-    }
-
-    // Extract the private key from the certificate
-    let privateKey;
-    let privateKeyPem = '';
-
-    // Check RSA PRIVATE KEY format
-    if (pemData.includes('-----BEGIN RSA PRIVATE KEY-----')) {
-      const rsaKeyPart = pemData.split('-----BEGIN RSA PRIVATE KEY-----')[1]?.split('-----END RSA PRIVATE KEY-----')[0];
-      if (rsaKeyPart) {
-        privateKeyPem = `-----BEGIN RSA PRIVATE KEY-----${rsaKeyPart}-----END RSA PRIVATE KEY-----`;
-        privateKey = privateKeyPem;
-      }
-    }
-    // Check PRIVATE KEY format
-    else if (pemData.includes('-----BEGIN PRIVATE KEY-----')) {
-      const keyPart = pemData.split('-----BEGIN PRIVATE KEY-----')[1]?.split('-----END PRIVATE KEY-----')[0];
-      if (keyPart) {
-        privateKeyPem = `-----BEGIN PRIVATE KEY-----${keyPart}-----END PRIVATE KEY-----`;
-        privateKey = privateKeyPem;
-      }
-    }
-
-    if (!privateKeyPem) {
-      throw new Error('No se encontró la clave privada en el archivo PEM');
-    }
-
-    const sig = new SignedXml({
-      privateKey: privateKey,
-      signatureAlgorithm: 'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
-      canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
-    }) as any;
-
-    sig.addReference({
-      xpath: "//*[local-name(.)='factura']",
-      transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature'],
-      digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
-    });
-
-    sig.keyInfoProvider = {
-      getKeyInfo(): string {
-        return `<X509Data><X509Certificate>${certPem
-          .replace('-----BEGIN CERTIFICATE-----', '')
-          .replace('-----END CERTIFICATE-----', '')
-          .replace(/\r?\n|\r/g, '')}</X509Certificate></X509Data>`;
-      },
-    } as KeyInfoProvider;
-
-    // Sign XML
-    const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
-    sig.computeSignature(xmlString);
-    return sig.getSignedXml();
+    return firmador(xmlString, p12Minimo, { pkcs12Password: password || '' });
   } catch (error: any) {
     console.error('Error signing XML:', error.message);
     throw new Error(`Error al firmar XML: ${error.message}`);
@@ -91,7 +135,7 @@ export async function firmarXML(xmlString: string, pemPath: string, password: st
 }
 
 /**
- * Guarda un XML firmado en un archivo
+ * Guarda un XML firmado en el sistema de archivos
  */
 export function guardarXMLFirmado(xmlString: string, outputPath: string): void {
   fs.writeFileSync(outputPath, xmlString, { encoding: 'utf8' });

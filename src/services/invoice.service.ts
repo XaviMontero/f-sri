@@ -2,7 +2,7 @@ import { CreateInvoiceDTO, InvoiceRequest, ProductDetail, AccessKeyDTO } from '.
 import { convertirFecha, generarClaveAcceso } from '../utils/invoice.utils';
 import { generarXMLFactura } from '../utils/xml.utils';
 import { firmarXML } from '../utils/firma.utils';
-import { enviarComprobanteSRI, RespuestaSRI } from '../utils/sri.utils';
+import { enviarComprobanteSRI, autorizarComprobanteSRI, RespuestaSRI, AutorizacionSRI } from '../utils/sri.utils';
 import { generateInvoicePDF } from '../utils/pdf.utils';
 import { PDFStorageFactory } from './storage';
 import Invoice from '../models/Invoice';
@@ -367,8 +367,8 @@ export class InvoiceService {
             }
           }
 
-          const pemPath = await InvoiceService.convertP12ToPem(p12Path, workingPassword);
-          const xmlFirmado = await firmarXML(factura.xml, pemPath, workingPassword);
+          // Sign directly from the P12 using the SRI-compliant XAdES-BES signer
+          const xmlFirmado = await firmarXML(factura.xml, p12Path, workingPassword, '01');
 
           factura.xml_firmado = xmlFirmado;
           await factura.save();
@@ -391,6 +391,7 @@ export class InvoiceService {
                 `✅ FACTURA RECIBIDA POR SRI - ID: ${factura._id}, Clave: ${factura.clave_acceso}, Secuencial: ${factura.secuencial}`,
               );
               await this.generarPDFFactura(factura, empresa, cliente, productos, datosFactura);
+              this.programarConsultaAutorizacion(String(factura._id));
             } else {
               console.log(`⚠️ SRI Estado: ${respuestaSRI.estado} - Factura ID: ${factura._id}`);
             }
@@ -622,6 +623,69 @@ export class InvoiceService {
       } catch (dbError) {
         console.error('❌ Error saving PDF error record:', dbError);
       }
+    }
+  }
+
+  /**
+   * Programa consultas de autorización al SRI con reintentos.
+   * En el esquema offline la autorización es asíncrona: tras la recepción,
+   * el comprobante puede tardar unos segundos en ser autorizado.
+   * @param facturaId ID de la factura a consultar
+   * @param intento Número de intento actual
+   * @param maxIntentos Número máximo de intentos
+   * @param delayMs Espera entre intentos en milisegundos
+   */
+  static programarConsultaAutorizacion(facturaId: string, intento = 1, maxIntentos = 3, delayMs = 5000): void {
+    const timer = setTimeout(async () => {
+      try {
+        const resultado = await InvoiceService.consultarAutorizacionSRI(facturaId);
+        const pendiente = !resultado || (resultado.estado !== 'AUTORIZADO' && resultado.estado !== 'NO AUTORIZADO');
+
+        if (pendiente && intento < maxIntentos) {
+          InvoiceService.programarConsultaAutorizacion(facturaId, intento + 1, maxIntentos, delayMs);
+        }
+      } catch (error: any) {
+        console.error('Error en la consulta de autorización automática:', error.message);
+      }
+    }, delayMs);
+
+    // Do not keep the process alive because of the scheduled check
+    timer.unref?.();
+  }
+
+  /**
+   * Consulta el estado de autorización de una factura ya recibida por el SRI
+   * y actualiza el documento con el resultado.
+   * En el esquema offline el número de autorización es la propia clave de acceso.
+   * @param facturaId ID de la factura a consultar
+   */
+  static async consultarAutorizacionSRI(facturaId: string): Promise<AutorizacionSRI | null> {
+    try {
+      const factura = await Invoice.findById(facturaId);
+      if (!factura || !factura.clave_acceso) {
+        throw new Error('Factura no encontrada o sin clave de acceso');
+      }
+
+      const respuesta = await autorizarComprobanteSRI(factura.clave_acceso);
+
+      factura.sri_estado = respuesta.estado;
+      factura.sri_fecha_respuesta = new Date();
+      if (respuesta.mensajes) {
+        factura.sri_mensajes = respuesta.mensajes;
+      }
+
+      if (respuesta.estado === 'AUTORIZADO') {
+        factura.estado = 'AUTORIZADA';
+        factura.autorizacion_numero = respuesta.numeroAutorizacion || factura.clave_acceso;
+        factura.fecha_autorizacion = respuesta.fechaAutorizacion ? new Date(respuesta.fechaAutorizacion) : new Date();
+        console.log(`✅ FACTURA AUTORIZADA POR SRI - Secuencial: ${factura.secuencial}`);
+      }
+
+      await factura.save();
+      return respuesta;
+    } catch (error: any) {
+      console.error('Error al consultar autorización SRI:', error.message);
+      return null;
     }
   }
 
