@@ -759,9 +759,13 @@ export function generarXMLRetencion(
   if (info.tipoSujetoRetenido) {
     infoNode.ele('tipoSujetoRetenido').txt(info.tipoSujetoRetenido).up();
   }
-  if (info.parteRel) {
-    infoNode.ele('parteRel').txt(info.parteRel).up();
-  }
+  // <parteRel> es obligatorio en el esquema de retención ATS 2.0.0 (SI/NO).
+  // Si no se envía en el request se emite 'NO' por defecto, de lo contrario el SRI
+  // devuelve el comprobante con error 35: ARCHIVO NO CUMPLE ESTRUCTURA XML.
+  infoNode
+    .ele('parteRel')
+    .txt(info.parteRel || 'NO')
+    .up();
 
   const docsSustentoNode = infoNode
     .ele('razonSocialSujetoRetenido')

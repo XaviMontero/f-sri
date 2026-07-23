@@ -218,6 +218,31 @@ describe('WithholdingService', () => {
       expect(resultado.retencion.total_retenido).toBeCloseTo(12.25);
       expect(resultado.retencion.periodo_fiscal).toBe('05/2025');
     });
+
+    it('always emits the mandatory <parteRel> tag (default NO) before razonSocialSujetoRetenido', async () => {
+      jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+      const resultado = await WithholdingService.crearRetencionCompleta(requestValido);
+
+      // ATS 2.0.0 schema: {tipoSujetoRetenido?, parteRel} must precede razonSocialSujetoRetenido,
+      // otherwise SRI rejects with error 35 (ARCHIVO NO CUMPLE ESTRUCTURA XML)
+      expect(resultado.xml).toContain('<parteRel>NO</parteRel>');
+      expect(resultado.xml.indexOf('<parteRel>')).toBeLessThan(resultado.xml.indexOf('<razonSocialSujetoRetenido>'));
+    });
+
+    it('respects an explicit parteRel value and emits tipoSujetoRetenido when provided', async () => {
+      jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+      const request = JSON.parse(JSON.stringify(requestValido)) as WithholdingRequest;
+      request.infoCompRetencion.parteRel = 'SI';
+      request.infoCompRetencion.tipoSujetoRetenido = '01';
+
+      const resultado = await WithholdingService.crearRetencionCompleta(request);
+
+      expect(resultado.xml).toContain('<parteRel>SI</parteRel>');
+      expect(resultado.xml).toContain('<tipoSujetoRetenido>01</tipoSujetoRetenido>');
+      expect(resultado.xml.indexOf('<tipoSujetoRetenido>')).toBeLessThan(resultado.xml.indexOf('<parteRel>'));
+    });
   });
 
   describe('procesarEnvioSRI', () => {
