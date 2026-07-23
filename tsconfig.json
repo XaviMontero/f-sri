@@ -3,9 +3,9 @@
     "target": "es2019",
     "module": "commonjs",
     "outDir": "dist",
-    "rootDir": "src",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["jest", "node"]
   },
-  "exclude": ["__tests__", "scripts", "node_modules", "dist"]
+  "exclude": ["node_modules", "dist"]
 }

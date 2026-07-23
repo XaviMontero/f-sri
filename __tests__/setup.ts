@@ -4,6 +4,7 @@ jest.setTimeout(30000);
 // Mock environment variables for tests
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_jwt_secret_key_for_testing';
+process.env.ENCRYPTION_KEY = 'REDACTED_TEST_ENCRYPTION_KEY_ROTATED'; // valor secreto no valido, solo para test
 process.env.MONGO_URI = 'mongodb://localhost:27017/veronica_test';
 
 // Global mocks for CI environment
