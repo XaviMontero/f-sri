@@ -30,26 +30,40 @@
 
 ```mermaid
 graph LR
-    A[Crear Factura] --> B[Generar XML]
-    B --> C[Firmar Digitalmente]
-    C --> D[Enviar al SRI]
-    D --> E{Estado SRI}
-    E -->|RECIBIDA| F[Generar PDF Automáticamente]
-    E -->|DEVUELTA| G[Log de Errores]
-    F --> H[PDF Disponible para Descarga]
+    A[Crear Factura] --> B[Calcular totales + XML 1.1.0]
+    B --> C[Firma XAdES-BES<br/>firmaec.js]
+    C --> D[Recepción SRI]
+    D -->|DEVUELTA| G[Mensajes del SRI]
+    D -->|RECIBIDA| E[Autorización SRI<br/>con reintentos]
+    E -->|AUTORIZADO| F[RIDE PDF + XML autorizado]
+    E -->|NO AUTORIZADO| G
 ```
 
 ### 🔄 Proceso Detallado
 
-1. **📝 Creación**: Se envía la factura via `/api/v1/invoice/complete`
-2. **📄 XML**: Se genera el XML según normativa del SRI
-3. **🔐 Firma**: Se firma digitalmente con el certificado almacenado (base64)
-4. **📤 Envío**: Se envía al SRI (ambiente pruebas o producción)
-5. **✅ Confirmación**: Si SRI responde `"RECIBIDA"`, se ejecuta automáticamente:
-   - **📄 Generación de PDF** con formato oficial
-   - **☁️ Almacenamiento** en el proveedor configurado (Cloudinary por defecto)
-   - **📊 Log de éxito**: `✅ FACTURA RECIBIDA POR SRI - ID: [id], Clave: [clave], Secuencial: [seq]`
-6. **📥 Disponibilidad**: PDF disponible via API con URL pública del proveedor
+1. **📝 Creación**: `POST /api/v1/invoice/complete` (con `?esperar=true` responde cuando el SRI autoriza).
+2. **🧮 Totales**: el servidor calcula subtotales, IVA por tarifa (15% vigente, 0%, 5%, exento…) y total a partir de
+   las líneas. Si el cliente envía `totalSinImpuestos`/`importeTotal` y no coinciden, la factura se rechaza con 400.
+3. **📄 XML**: esquema `factura` 1.1.0 (pagos, hasta 6 decimales en cantidad/precio).
+4. **🔐 Firma**: XAdES-BES enveloped sobre `#comprobante` con [firmaec.js](https://github.com/XaviMontero/firmaec.js)
+   (port a Node de la librería oficial FirmaEC). El `.p12` se usa en memoria, nunca se escribe a disco.
+5. **📤 Recepción** y **✅ Autorización**: el ambiente (pruebas/producción) sale de `tipo_ambiente` de la empresa.
+   El envío es idempotente y reanudable (`POST /api/v1/invoice/{id}/enviar`).
+6. **📥 RIDE**: al quedar `AUTORIZADO` se genera el PDF (con código de barras de la clave) y se guarda en el proveedor configurado.
+
+### 🏛️ Arquitectura
+
+```
+src/
+├── domain/            # Reglas del SRI sin dependencias: AccessKey, Invoice, InvoiceLine, totales, catálogos
+├── application/
+│   ├── ports/         # Interfaces: DocumentSigner, SriGateway, repositorios, RidePublisher
+│   └── use-cases/     # IssueInvoice (emitir) · SubmitInvoiceToSri (firmar → recepción → autorización)
+├── infrastructure/    # Adaptadores: firmaec.js, SOAP del SRI, XML, Mongo, RIDE
+├── http/              # Mapeo del payload, errores de dominio → HTTP, tenant
+├── routes/            # Express
+└── container.ts       # Composition root (único lugar que conoce las implementaciones)
+```
 
 ## 🛠️ Tecnologías
 
@@ -57,8 +71,8 @@ graph LR
 - **Base de Datos**: MongoDB + Mongoose
 - **Autenticación**: JWT + bcrypt
 - **Documentación**: Swagger/OpenAPI 3.0
-- **Testing**: Jest + Supertest
-- **Firma Digital**: node-forge
+- **Testing**: Vitest + Supertest + mongodb-memory-server
+- **Firma Digital**: firmaec.js (XAdES-BES)
 - **PDF**: Puppeteer
 - **Almacenamiento**: Cloudinary (por defecto) / Local
 
@@ -102,10 +116,8 @@ MASTER_REGISTRATION_KEY=clave_maestra_super_secreta
 PORT=3000
 NODE_ENV=development
 
-# SRI Ecuador - URLs de servicios web
-SRI_ENVIRONMENT=1  # 1=Pruebas, 2=Producción
-SRI_RECEPCION_URL_PRUEBAS=https://celcer.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline?wsdl
-SRI_RECEPCION_URL_PRODUCCION=https://cel.sri.gob.ec/comprobantes-electronicos-ws/RecepcionComprobantesOffline?wsdl
+# SRI Ecuador: el ambiente sale de `tipo_ambiente` de cada empresa (1=Pruebas, 2=Producción).
+# Los endpoints oficiales vienen por defecto; ver .env.example para sobreescribirlos.
 
 # Almacenamiento de PDFs (cloudinary o local)
 PDF_STORAGE_PROVIDER=cloudinary  # Por defecto: cloudinary
@@ -177,15 +189,18 @@ POST /register          # Registro de usuario y empresa
 POST /auth             # Autenticación
 GET  /status           # Estado del sistema
 
-# Facturación
-POST /api/v1/invoice/complete    # Crear y procesar factura
-GET  /api/v1/invoice            # Listar facturas
+# Facturación (todas acotadas a la empresa del token)
+POST /api/v1/invoice/complete[?esperar=true]  # Emitir: firma, envía y (opcional) espera la autorización
+POST /api/v1/invoice/{id}/enviar              # Reintentar firma/envío/autorización
+GET  /api/v1/invoice/{id}/estado              # Estado SRI, número y fecha de autorización, mensajes
+GET  /api/v1/invoice/{id}/xml                 # XML autorizado
+GET  /api/v1/invoice                          # Listar facturas
 
 # PDFs (Generación Automática)
 GET  /api/v1/invoice-pdf                    # Listar todos los PDFs
-GET  /api/v1/invoice-pdf/factura/{id}       # PDF por ID de factura
-GET  /api/v1/invoice-pdf/{id}/download      # Descargar PDF
-GET  /api/v1/invoice-pdf/clave/{claveAcceso} # PDF por clave de acceso
+GET  /api/v1/invoice-pdf/invoice/{id}            # PDF por ID de factura
+GET  /api/v1/invoice-pdf/download/{claveAcceso}  # Descargar PDF
+GET  /api/v1/invoice-pdf/access-key/{claveAcceso} # PDF por clave de acceso
 POST /api/v1/invoice-pdf/regenerate/{id}    # Regenerar PDF
 
 # Gestión
@@ -196,30 +211,36 @@ GET  /api/v1/product           # Productos
 
 ### 📄 Gestión de PDFs
 
-Los PDFs se generan **automáticamente** cuando el SRI confirma la recepción (`estado: "RECIBIDA"`) y se almacenan en el proveedor configurado (Cloudinary por defecto). No requiere intervención manual.
+Los PDFs se generan **automáticamente** cuando el SRI autoriza la factura (`estado: "AUTORIZADO"`) y se almacenan en el proveedor configurado (Cloudinary por defecto). No requiere intervención manual.
 
 ```bash
 # Verificar si una factura tiene PDF generado
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:3000/api/v1/invoice-pdf/factura/64f8a1b2c3d4e5f6a7b8c9d2
+  http://localhost:3000/api/v1/invoice-pdf/invoice/64f8a1b2c3d4e5f6a7b8c9d2
 
 # Descargar PDF de factura
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:3000/api/v1/invoice-pdf/64f8a1b2c3d4e5f6a7b8c9d8/download \
+  http://localhost:3000/api/v1/invoice-pdf/download/$CLAVE_ACCESO \
   -o factura.pdf
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Ejecutar todos los tests
-npm test
-
-# Tests en modo watch
-npm run test:watch
-
-# Coverage
+npm test                  # unitarios + integración (Mongo en memoria, firma real con un .p12 generado)
+npm run test:unit
+npm run test:integration
 npm run test:coverage
+```
+
+### E2E contra el ambiente de pruebas del SRI
+
+Con el servidor levantado y la base vacía, autoriza una factura real de punta a punta
+(registro con tu `.p12` → producto → factura → firma → recepción → autorización → RIDE):
+
+```bash
+P12=/ruta/firma.p12 P12_PASSWORD='***' RUC=0999999999001 RAZON_SOCIAL='MI EMPRESA' \
+MASTER_REGISTRATION_KEY=... API=http://localhost:3000 npm run e2e:sri
 ```
 
 ## 🚀 Despliegue

@@ -44,6 +44,15 @@ const schema = new Schema<IIssuingCompany>(
   },
   {
     timestamps: true, // Add createdAt and updatedAt
+    toJSON: {
+      // El certificado y su clave nunca salen por la API.
+      transform: (_doc, ret: Record<string, unknown>) => {
+        ret.tiene_certificado = Boolean(ret.certificate);
+        delete ret.certificate;
+        delete ret.certificate_password;
+        return ret;
+      },
+    },
   },
 );
 
