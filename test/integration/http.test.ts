@@ -577,3 +577,40 @@ describe('issuing-company never exposes the certificate', () => {
     expect([403, 404]).toContain(res.status);
   });
 });
+
+describe('búsquedas por clave lógica (aporte de #19)', () => {
+  it('producto por código, cliente por identificación y tipo de identificación por código', async () => {
+    const app = buildApp(new ScriptedSri());
+    const { token } = await register(app);
+    const h = auth(token);
+
+    await request(app)
+      .post('/api/v1/product')
+      .set(h)
+      .send({ codigo: 'P-001', descripcion: 'Producto', precio_unitario: 5, tiene_iva: true });
+    const type = await request(app)
+      .post('/api/v1/identification-type')
+      .set(h)
+      .send({ codigo: '05', descripcion: 'CEDULA' });
+    await request(app)
+      .post('/api/v1/client')
+      .set(h)
+      .send({ tipo_identificacion_id: type.body._id, identificacion: '0102030405', razon_social: 'Cliente Uno' });
+
+    const product = await request(app).get('/api/v1/product/code/P-001').set(h);
+    expect(product.status).toBe(200);
+    expect(product.body.descripcion).toBe('Producto');
+
+    const client = await request(app).get('/api/v1/client/docid/0102030405').set(h);
+    expect(client.status).toBe(200);
+    expect(client.body.razon_social).toBe('Cliente Uno');
+
+    const idType = await request(app).get('/api/v1/identification-type/code/05').set(h);
+    expect(idType.status).toBe(200);
+    expect(idType.body.descripcion).toBe('CEDULA');
+
+    expect((await request(app).get('/api/v1/product/code/NOPE').set(h)).status).toBe(404);
+    expect((await request(app).get('/api/v1/client/docid/9999999999').set(h)).status).toBe(404);
+    expect((await request(app).get('/api/v1/identification-type/code/99').set(h)).status).toBe(404);
+  });
+});

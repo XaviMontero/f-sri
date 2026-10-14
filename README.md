@@ -88,6 +88,9 @@ facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
   envía totales que no coinciden → 400, sin consumir secuencial.
 - Validaciones del SRI: consumidor final (9999999999999, máximo USD 50), cédula/RUC, suma de pagos, máximo 15 campos adicionales.
 - **Secuenciales atómicos** por establecimiento/punto de emisión (antes dos facturas simultáneas podían repetir número).
+  Si vienes de otro sistema, registra la empresa con `ultimo_secuencial` (el último número ya emitido) para evitar el
+  error 45 "SECUENCIAL REGISTRADO" del SRI; se puede subir luego con `PUT /api/v1/issuing-company/{id}`.
+- **.p12 con varias claves**: se firma con el certificado que tiene uso `digitalSignature`, no con la primera clave del archivo.
 - Consumidor final y compradores ad-hoc sin necesidad de registrarlos como cliente; líneas sin producto si traen descripción y precio.
 
 ### Nuevos endpoints
@@ -95,6 +98,8 @@ facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
 - `POST /api/v1/invoice/{id}/enviar`, `GET /api/v1/invoice/{id}/estado`, `GET /api/v1/invoice/{id}/xml`.
 - `POST /api/v1/invoice-pdf/regenerate/{id}` ahora regenera el RIDE de verdad (antes era un stub).
 - Con almacenamiento local, el servidor sirve los PDFs en `/pdfs`.
+- Búsquedas por clave lógica (idea de #19): `GET /api/v1/product/code/{codigo}`, `GET /api/v1/client/docid/{identificacion}`,
+  `GET /api/v1/identification-type/code/{codigo}`.
 
 ### RIDE
 - Código de barras Code128 de la clave de acceso, subtotales por tarifa, formas de pago e información adicional reales.
@@ -108,7 +113,7 @@ facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
 
 ### Arquitectura y calidad
 - Capas DDD/hexagonal (ver Arquitectura) con composition root en `src/container.ts`.
-- Tests de **Jest a Vitest** (firmaec.js es ESM): **377 tests** de dominio, casos de uso, adaptadores (firma verificada
+- Tests de **Jest a Vitest** (firmaec.js es ESM): **381 tests** de dominio, casos de uso, adaptadores (firma verificada
   criptográficamente, SOAP del SRI) e integración HTTP con Mongo en memoria. Cobertura ≥ 80% exigida en CI.
 - CI en Node 22/24 · `scripts/e2e-sri-pruebas.sh` para probar contra el SRI real.
 
@@ -295,6 +300,8 @@ Con el servidor levantado y la base vacía, autoriza una factura real de punta a
 P12=/ruta/firma.p12 P12_PASSWORD='***' RUC=0999999999001 RAZON_SOCIAL='MI EMPRESA' \
 MASTER_REGISTRATION_KEY=... API=http://localhost:3000 npm run e2e:sri
 ```
+
+Si el RUC ya emitió comprobantes en la serie 001-001, agrega `ULTIMO_SECUENCIAL=<último número>`.
 
 ## 🚀 Despliegue
 

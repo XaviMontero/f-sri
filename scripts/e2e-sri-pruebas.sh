@@ -5,6 +5,9 @@
 #   P12=/ruta/firma.p12 P12_PASSWORD=... RUC=0999999999001 RAZON_SOCIAL="..." \
 #   MASTER_REGISTRATION_KEY=... API=http://localhost:3000 scripts/e2e-sri-pruebas.sh
 #
+# Si el RUC ya emitió facturas en esa serie (001-001), pase ULTIMO_SECUENCIAL=<último número>
+# o el SRI responderá error 45 "SECUENCIAL REGISTRADO".
+#
 # Requiere el servidor levantado (npm run build && npm start) con MASTER_REGISTRATION_KEY
 # configurado y la base vacía (el primer registro exige la clave maestra).
 set -euo pipefail
@@ -13,6 +16,7 @@ set -euo pipefail
 : "${MASTER_REGISTRATION_KEY:?clave maestra del servidor}"
 API="${API:-http://localhost:3000}"
 DIRECCION="${DIRECCION:-CUENCA}"
+ULTIMO_SECUENCIAL="${ULTIMO_SECUENCIAL:-0}"
 EMAIL="${EMAIL:-e2e-$RUC@f-sri.local}"
 # Usuario efímero de la prueba: credencial aleatoria por corrida, nunca fija en el código.
 USER_SECRET="${E2E_USER_SECRET:-$(openssl rand -hex 16)}"
@@ -21,10 +25,10 @@ command -v jq >/dev/null || { echo "jq es requerido"; exit 1; }
 echo "▶ Registrando emisor $RUC"
 CERT_B64=$(base64 -w0 "$P12")
 REGISTER=$(jq -n --arg email "$EMAIL" --arg password "$USER_SECRET" --arg ruc "$RUC" --arg rs "$RAZON_SOCIAL" \
-  --arg dir "$DIRECCION" --arg cert "$CERT_B64" --arg cpass "$P12_PASSWORD" --arg mk "$MASTER_REGISTRATION_KEY" \
+  --arg dir "$DIRECCION" --arg cert "$CERT_B64" --arg cpass "$P12_PASSWORD" --arg mk "$MASTER_REGISTRATION_KEY" --argjson us "$ULTIMO_SECUENCIAL" \
   '{email:$email,password:$password,ruc:$ruc,razon_social:$rs,nombre_comercial:$rs,direccion:$dir,
     codigo_establecimiento:"001",punto_emision:"001",tipo_ambiente:1,tipo_emision:1,
-    certificate:$cert,certificate_password:$cpass,masterKey:$mk}')
+    certificate:$cert,certificate_password:$cpass,masterKey:$mk,ultimo_secuencial:$us}')
 TOKEN=$(curl -sf -X POST "$API/register" -H 'Content-Type: application/json' -d "$REGISTER" | jq -r .token) \
   || TOKEN=$(curl -sf -X POST "$API/auth" -H 'Content-Type: application/json' \
        -d "$(jq -n --arg e "$EMAIL" --arg p "$USER_SECRET" '{email:$e,password:$p}')" | jq -r .token)
