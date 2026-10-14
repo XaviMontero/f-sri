@@ -26,7 +26,9 @@ Los cinco comprobantes fueron **AUTORIZADOS en el ambiente de pruebas del SRI** 
 - Secuenciales atómicos por establecimiento, punto de emisión y tipo de comprobante.
 - Tests: de Jest a **Vitest**, con 612 tests y 88% de cobertura.
 - `ENCRYPTION_KEY` recomendada en hex de 64 caracteres (`openssl rand -hex 32`), compatible con las claves anteriores.
-- Dependencias actualizadas (axios, nodemailer, express/qs, jws, lodash, mongoose, entre otras).
+- **firmaec.js se instala desde npm** (`firmaec.js@^5.2.0`); se elimina el tarball de `vendor/`.
+- Dependencias actualizadas: puppeteer 25 (Chrome 155), nodemailer 10, xmlbuilder2 4, axios, express/qs, jws, lodash, mongoose y otras.
+- `npm run dev` usa `tsx watch`; se retiran nodemon, ts-node y ts-node-dev.
 
 ### Seguridad
 - Facturas, comprobantes, PDFs y empresa emisora quedan **acotados a la empresa del token**.
@@ -34,6 +36,8 @@ Los cinco comprobantes fueron **AUTORIZADOS en el ambiente de pruebas del SRI** 
 - Se elimina `certificatePath`, que permitía leer archivos arbitrarios del servidor.
 - El `.p12` ya no se escribe en disco y se elimina la prueba de contraseñas "comunes".
 - El HTML del RIDE se escapa.
+- `npm audit` pasa de 21 paquetes vulnerables a uno, `node-forge`, que llega a través de firmaec.js y no tiene versión corregida.
+  Solo se usa para abrir el `.p12`; el advisory (GHSA-86w9-cpqp-85rv) afecta a la *verificación* de firmas RSA, que no se usa.
 
 ### ⚠️ Incompatibles con 1.x
 - Se retiran `PUT /api/v1/invoice/{id}` y `POST /api/v1/invoice` (sin `/complete`).
