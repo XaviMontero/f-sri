@@ -2,15 +2,16 @@
 
 [![CI/CD Pipeline](https://github.com/XaviMontero/f-sri/actions/workflows/ci.yml/badge.svg)](https://github.com/XaviMontero/f-sri/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/XaviMontero/f-sri/actions)
-[![Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen.svg)](https://github.com/XaviMontero/f-sri)
+[![Coverage](https://img.shields.io/badge/coverage-88%25-brightgreen.svg)](https://github.com/XaviMontero/f-sri)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20.19+-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-6.0+-green.svg)](https://www.mongodb.com/)
 [![Express](https://img.shields.io/badge/Express-4.18+-lightgrey.svg)](https://expressjs.com/)
 [![Version](https://img.shields.io/github/v/release/XaviMontero/f-sri.svg)](https://github.com/XaviMontero/f-sri/releases)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Ecuador SRI](https://img.shields.io/badge/Ecuador-SRI%20Compatible-success.svg)](https://www.sri.gob.ec/)
+[![firmaec.js on npm](https://img.shields.io/npm/v/firmaec.js.svg?label=firmaec.js&logo=npm)](https://www.npmjs.com/package/firmaec.js)
 
 
 **Sistema de Facturación Electrónica** es un sistema libre y de código abierto diseñado específicamente para Ecuador, con integración completa al SRI (Servicio de Rentas Internas).
@@ -64,6 +65,22 @@ src/
 ├── http/              # Mapeo del payload, errores de dominio → HTTP, tenant, router genérico de comprobantes
 ├── routes/            # Express
 └── container.ts       # Composition root (único lugar que conoce las implementaciones)
+```
+
+## ✍️ Firma electrónica: firmaec.js
+
+La firma XAdES-BES la hace [**firmaec.js**](https://www.npmjs.com/package/firmaec.js), port a Node.js de la librería
+oficial FirmaEC. También firma **PDF (PAdES)** con firma visible y sello de tiempo, todo sin Java. Se puede usar sola
+en cualquier proyecto Node:
+
+```bash
+npm install firmaec.js
+```
+
+```ts
+import { firmarXml } from 'firmaec.js';
+
+const xmlFirmado = await firmarXml(xmlComprobante, fs.readFileSync('firma.p12'), process.env.P12_PASSWORD!);
 ```
 
 ## 🧾 Todos los comprobantes electrónicos del SRI
@@ -385,7 +402,7 @@ CMD ["npm", "start"]
 
 Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
 
-La firma electrónica usa [firmaec.js](https://github.com/XaviMontero/firmaec.js) (incluida en `vendor/`), distribuida bajo
+La firma electrónica usa [firmaec.js](https://www.npmjs.com/package/firmaec.js) (dependencia de npm), distribuida bajo
 **AGPL-3.0-or-later** por derivar de la librería FirmaEC; sus términos aplican a ese componente.
 
 ## 🆘 Soporte

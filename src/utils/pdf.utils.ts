@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer';
 import { DOMImplementation, XMLSerializer } from '@xmldom/xmldom';
 import JsBarcode from 'jsbarcode';
 import { formatDecimal, formatMoney } from '../domain/shared/money';
@@ -163,8 +162,18 @@ function rateLabel(code: string): string {
   }
 }
 
+type PuppeteerModule = { default: { launch(options: Record<string, unknown>): Promise<any> } };
+let puppeteerModule: Promise<PuppeteerModule> | undefined;
+
+/** puppeteer ≥ 25 es solo ESM: con `module: node16` el `import()` dinámico se conserva en CommonJS. */
+function loadPuppeteer(): Promise<PuppeteerModule> {
+  puppeteerModule ??= import('puppeteer') as unknown as Promise<PuppeteerModule>;
+  return puppeteerModule;
+}
+
 /** Renderiza HTML a PDF A4 con Chromium headless. */
 export async function htmlToPdf(html: string): Promise<Buffer> {
+  const { default: puppeteer } = await loadPuppeteer();
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   try {
     const page = await browser.newPage();
