@@ -60,10 +60,32 @@ src/
 │   ├── ports/         # Interfaces: DocumentSigner, SriGateway, repositorios, RidePublisher
 │   └── use-cases/     # IssueInvoice (emitir) · SubmitInvoiceToSri (firmar → recepción → autorización)
 ├── infrastructure/    # Adaptadores: firmaec.js, SOAP del SRI, XML, Mongo, RIDE
-├── http/              # Mapeo del payload, errores de dominio → HTTP, tenant
+├── modules/           # Nota de crédito, nota de débito, guía de remisión, retención (un módulo cada uno)
+├── http/              # Mapeo del payload, errores de dominio → HTTP, tenant, router genérico de comprobantes
 ├── routes/            # Express
 └── container.ts       # Composition root (único lugar que conoce las implementaciones)
 ```
+
+## 🧾 Todos los comprobantes electrónicos del SRI
+
+| Comprobante | codDoc | Endpoint | Body |
+|---|---|---|---|
+| Factura | 01 | `POST /api/v1/invoice/complete` | `{ "factura": {...} }` |
+| Nota de crédito | 04 | `POST /api/v1/credit-note/complete` | `{ "nota_credito": {...} }` |
+| Nota de débito | 05 | `POST /api/v1/debit-note/complete` | `{ "nota_debito": {...} }` |
+| Guía de remisión | 06 | `POST /api/v1/delivery-note/complete` | `{ "guia_remision": {...} }` |
+| Retención (ATS 2.0.0) | 07 | `POST /api/v1/withholding/complete` | `{ "retencion": {...} }` |
+
+Todos comparten el mismo flujo y endpoints: `?esperar=true`, `/{id}/enviar`, `/{id}/estado`, `/{id}/xml`,
+`GET|POST /{id}/pdf` (RIDE), listado y borrado de borradores, siempre acotados a la empresa del token.
+Los cinco fueron **AUTORIZADOS en el ambiente de pruebas del SRI** con un certificado real. Ejemplos de cada body en Swagger (`/docs`).
+
+Las notas de crédito/débito, guía de remisión y retención son obra de **@gustavdz** (#21, #23, #25, #27),
+integradas sobre la arquitectura por capas: cada comprobante es un módulo en `src/modules/<comprobante>/`
+(dominio, caso de uso, XML, persistencia, RIDE y rutas) que reutiliza el pipeline común de firma y autorización.
+
+Si la empresa ya emitió comprobantes en otro sistema, declara el último secuencial por tipo en
+`ultimos_secuenciales` (p. ej. `{ "04": 120 }`) para evitar el error 45 "SECUENCIAL REGISTRADO".
 
 ## 🆕 Novedades: firma XAdES-BES y autorización SRI (octubre 2026)
 
@@ -113,7 +135,7 @@ facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
 
 ### Arquitectura y calidad
 - Capas DDD/hexagonal (ver Arquitectura) con composition root en `src/container.ts`.
-- Tests de **Jest a Vitest** (firmaec.js es ESM): **381 tests** de dominio, casos de uso, adaptadores (firma verificada
+- Tests de **Jest a Vitest** (firmaec.js es ESM): **612 tests** de dominio, casos de uso, adaptadores (firma verificada
   criptográficamente, SOAP del SRI) e integración HTTP con Mongo en memoria. Cobertura ≥ 80% exigida en CI.
 - CI en Node 22/24 · `scripts/e2e-sri-pruebas.sh` para probar contra el SRI real.
 
@@ -302,6 +324,12 @@ MASTER_REGISTRATION_KEY=... API=http://localhost:3000 npm run e2e:sri
 ```
 
 Si el RUC ya emitió comprobantes en la serie 001-001, agrega `ULTIMO_SECUENCIAL=<último número>`.
+
+Cada comprobante adicional tiene su E2E opt-in con Vitest (se omite sin las variables):
+
+```bash
+SRI_E2E_P12=/ruta/firma.p12 SRI_E2E_PASSWORD='***' npx vitest run test/e2e
+```
 
 ## 🚀 Despliegue
 
