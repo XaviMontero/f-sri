@@ -14,19 +14,20 @@ set -euo pipefail
 API="${API:-http://localhost:3000}"
 DIRECCION="${DIRECCION:-CUENCA}"
 EMAIL="${EMAIL:-e2e-$RUC@f-sri.local}"
-PASSWORD="${PASSWORD:-e2e-$(date +%s)}"
+# Usuario efímero de la prueba: credencial aleatoria por corrida, nunca fija en el código.
+USER_SECRET="${E2E_USER_SECRET:-$(openssl rand -hex 16)}"
 command -v jq >/dev/null || { echo "jq es requerido"; exit 1; }
 
 echo "▶ Registrando emisor $RUC"
 CERT_B64=$(base64 -w0 "$P12")
-REGISTER=$(jq -n --arg email "$EMAIL" --arg password "$PASSWORD" --arg ruc "$RUC" --arg rs "$RAZON_SOCIAL" \
+REGISTER=$(jq -n --arg email "$EMAIL" --arg password "$USER_SECRET" --arg ruc "$RUC" --arg rs "$RAZON_SOCIAL" \
   --arg dir "$DIRECCION" --arg cert "$CERT_B64" --arg cpass "$P12_PASSWORD" --arg mk "$MASTER_REGISTRATION_KEY" \
   '{email:$email,password:$password,ruc:$ruc,razon_social:$rs,nombre_comercial:$rs,direccion:$dir,
     codigo_establecimiento:"001",punto_emision:"001",tipo_ambiente:1,tipo_emision:1,
     certificate:$cert,certificate_password:$cpass,masterKey:$mk}')
 TOKEN=$(curl -sf -X POST "$API/register" -H 'Content-Type: application/json' -d "$REGISTER" | jq -r .token) \
   || TOKEN=$(curl -sf -X POST "$API/auth" -H 'Content-Type: application/json' \
-       -d "$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')" | jq -r .token)
+       -d "$(jq -n --arg e "$EMAIL" --arg p "$USER_SECRET" '{email:$e,password:$p}')" | jq -r .token)
 [ -n "$TOKEN" ] && [ "$TOKEN" != null ] || { echo "✗ No se pudo registrar/autenticar"; exit 1; }
 AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
