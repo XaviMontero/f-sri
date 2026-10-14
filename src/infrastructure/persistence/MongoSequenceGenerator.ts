@@ -16,7 +16,8 @@ export class MongoSequenceGenerator implements SequenceGenerator {
   }): Promise<string> {
     const id = `${key.ruc}-${key.establishment}-${key.emissionPoint}-${key.documentType}`;
     if (!(await Counter.exists({ _id: id }))) {
-      const seed = await this.lastIssued(key.ruc);
+      // Facturas emitidas antes de existir el contador (solo aplica a codDoc 01).
+      const seed = key.documentType === '01' ? await this.lastIssued(key.ruc) : 0;
       try {
         await Counter.updateOne({ _id: id }, { $setOnInsert: { seq: seed } }, { upsert: true });
       } catch (error) {
@@ -25,7 +26,7 @@ export class MongoSequenceGenerator implements SequenceGenerator {
       }
     }
     // seq = max(seq, último secuencial declarado por la empresa) + 1, en una sola operación atómica.
-    const floor = await this.declaredLastSequential(key.ruc);
+    const floor = await this.declaredLastSequential(key.ruc, key.documentType);
     const counter = await Counter.findOneAndUpdate(
       { _id: id },
       [{ $set: { seq: { $add: [{ $max: [{ $ifNull: ['$seq', 0] }, floor] }, 1] } } }],
@@ -35,12 +36,14 @@ export class MongoSequenceGenerator implements SequenceGenerator {
   }
 
   /**
-   * `ultimo_secuencial` de la empresa: el último número ya emitido fuera de f-sri (otro sistema,
-   * otra instalación). Evita el error 45 "SECUENCIAL REGISTRADO" del SRI.
+   * Último número ya emitido fuera de f-sri (otro sistema, otra instalación): evita el error 45
+   * "SECUENCIAL REGISTRADO". `ultimos_secuenciales` va por codDoc; `ultimo_secuencial` es el de facturas.
    */
-  private async declaredLastSequential(ruc: string): Promise<number> {
-    const company = await IssuingCompany.findOne({ ruc }).select('ultimo_secuencial').lean();
-    return Number(company?.ultimo_secuencial) || 0;
+  private async declaredLastSequential(ruc: string, documentType: string): Promise<number> {
+    const company = await IssuingCompany.findOne({ ruc }).select('ultimo_secuencial ultimos_secuenciales').lean();
+    const byType = company?.ultimos_secuenciales?.[documentType];
+    const declared = byType ?? (documentType === '01' ? company?.ultimo_secuencial : undefined);
+    return Number(declared) || 0;
   }
 
   private async lastIssued(ruc: string): Promise<number> {

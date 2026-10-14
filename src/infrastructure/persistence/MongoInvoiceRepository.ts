@@ -9,6 +9,7 @@ import {
 } from '../../application/ports/repositories';
 import { NotFoundError } from '../../domain/shared/errors';
 import { ivaRate } from '../../domain/invoice/catalogs';
+import { sriDocumentSet } from './sriDocumentMongo';
 
 /** Mapea el agregado persistido al esquema Mongo existente (nombres de campo en español). */
 export class MongoInvoiceRepository implements InvoiceRepository {
@@ -68,19 +69,7 @@ export class MongoInvoiceRepository implements InvoiceRepository {
   }
 
   async update(id: string, changes: InvoiceUpdate): Promise<InvoiceRecord> {
-    const set: Record<string, unknown> = {};
-    if (changes.status !== undefined) {
-      set.estado = changes.status;
-      set.sri_estado = changes.status;
-    }
-    if (changes.signedXml !== undefined) set.xml_firmado = changes.signedXml;
-    if (changes.authorizedXml !== undefined) set.xml_autorizado = changes.authorizedXml;
-    if (changes.authorizationNumber !== undefined) set.autorizacion_numero = changes.authorizationNumber;
-    if (changes.authorizationDate !== undefined) set.fecha_autorizacion = changes.authorizationDate;
-    if (changes.sentAt !== undefined) set.sri_fecha_envio = changes.sentAt;
-    if (changes.respondedAt !== undefined) set.sri_fecha_respuesta = changes.respondedAt;
-    if (changes.messages !== undefined) set.sri_mensajes = changes.messages;
-
+    const set = sriDocumentSet(changes);
     const doc = await Invoice.findByIdAndUpdate(id, { $set: set }, { new: true }).lean<IInvoice>();
     if (!doc) throw new NotFoundError('Factura no encontrada');
     return this.toRecord(doc);

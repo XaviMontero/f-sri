@@ -19,6 +19,8 @@ export interface IIssuingCompany extends Document {
   certificate?: string;
   /** Último secuencial ya emitido para estab/ptoEmi antes de usar f-sri (los siguientes parten de aquí). */
   ultimo_secuencial?: number;
+  /** Último secuencial ya emitido por codDoc ('04', '05', '06', '07'…); para '01' prima sobre `ultimo_secuencial`. */
+  ultimos_secuenciales?: Record<string, number>;
   certificate_password?: string;
   user_id: Types.ObjectId; // Reference to User
 }
@@ -42,6 +44,7 @@ const schema = new Schema<IIssuingCompany>(
     email_notificacion: { type: String },
     certificate: { type: String },
     ultimo_secuencial: { type: Number, min: 0, max: 999999999 },
+    ultimos_secuenciales: { type: Map, of: Number },
     certificate_password: { type: String },
     user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },

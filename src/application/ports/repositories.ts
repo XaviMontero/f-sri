@@ -48,19 +48,21 @@ export interface InvoiceLineRecord {
   taxValue: number;
 }
 
-export interface InvoiceRecord {
+/**
+ * Estado común de cualquier comprobante electrónico frente al SRI (factura, notas de
+ * crédito/débito, guía de remisión, retención). El pipeline de firma, recepción y
+ * autorización opera solo sobre estos campos.
+ */
+export interface SriDocumentRecord {
   id: string;
   issuerId: string;
-  buyerRecordId?: string;
-  buyer: Buyer;
+  /** codDoc de la tabla 3 (01, 04, 05, 06, 07). */
+  documentType?: string;
   accessKey: string;
   sequential: string;
   number: string;
   environment: '1' | '2';
   emissionDate: Date;
-  subtotal: number;
-  totalTax: number;
-  total: number;
   status: string;
   xml: string;
   signedXml?: string;
@@ -70,17 +72,11 @@ export interface InvoiceRecord {
   sentAt?: Date;
   respondedAt?: Date;
   messages?: SriMessage[];
-  lines: InvoiceLineRecord[];
-  payments?: Payment[];
-  additionalInfo?: Record<string, string>;
-  request?: unknown;
 }
 
-export type NewInvoiceRecord = Omit<InvoiceRecord, 'id'>;
-
-export type InvoiceUpdate = Partial<
+export type SriDocumentUpdate = Partial<
   Pick<
-    InvoiceRecord,
+    SriDocumentRecord,
     | 'status'
     | 'signedXml'
     | 'authorizedXml'
@@ -92,13 +88,33 @@ export type InvoiceUpdate = Partial<
   >
 >;
 
-export interface InvoiceRepository {
-  create(invoice: NewInvoiceRecord): Promise<InvoiceRecord>;
-  findById(id: string): Promise<InvoiceRecord | null>;
-  update(id: string, changes: InvoiceUpdate): Promise<InvoiceRecord>;
+/** Lo mínimo que necesita el pipeline SRI de un repositorio de comprobantes. */
+export interface SriDocumentRepository<T extends SriDocumentRecord = SriDocumentRecord> {
+  findById(id: string): Promise<T | null>;
+  update(id: string, changes: SriDocumentUpdate): Promise<T>;
 }
 
-/** Genera y publica el RIDE (representación impresa) de una factura autorizada. */
-export interface RidePublisher {
-  publish(invoice: InvoiceRecord): Promise<void>;
+/** Genera y publica el RIDE (representación impresa) de un comprobante autorizado. */
+export interface RidePublisher<T extends SriDocumentRecord = InvoiceRecord> {
+  publish(document: T): Promise<void>;
+}
+
+export interface InvoiceRecord extends SriDocumentRecord {
+  buyerRecordId?: string;
+  buyer: Buyer;
+  subtotal: number;
+  totalTax: number;
+  total: number;
+  lines: InvoiceLineRecord[];
+  payments?: Payment[];
+  additionalInfo?: Record<string, string>;
+  request?: unknown;
+}
+
+export type NewInvoiceRecord = Omit<InvoiceRecord, 'id'>;
+
+export type InvoiceUpdate = SriDocumentUpdate;
+
+export interface InvoiceRepository extends SriDocumentRepository<InvoiceRecord> {
+  create(invoice: NewInvoiceRecord): Promise<InvoiceRecord>;
 }

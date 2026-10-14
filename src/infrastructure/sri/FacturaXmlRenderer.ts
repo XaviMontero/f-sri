@@ -1,6 +1,5 @@
-import { create } from 'xmlbuilder2';
 import { XMLBuilder } from 'xmlbuilder2/lib/interfaces';
-import { COMPROBANTE_ID } from '../../domain/sri/constants';
+import { comprobanteRoot, infoAdicional, infoTributaria, optional, text } from './xmlHelpers';
 import { Invoice } from '../../domain/invoice/Invoice';
 import { formatDecimal, formatMoney } from '../../domain/shared/money';
 import { InvoiceXmlRenderer } from '../../application/ports/xml';
@@ -14,30 +13,17 @@ export const FACTURA_SCHEMA_VERSION = '1.1.0';
  */
 export class FacturaXmlRenderer implements InvoiceXmlRenderer {
   render(invoice: Invoice): string {
-    const root = create({ version: '1.0', encoding: 'UTF-8' }).ele('factura', {
-      id: COMPROBANTE_ID,
-      version: FACTURA_SCHEMA_VERSION,
+    const root = comprobanteRoot('factura', FACTURA_SCHEMA_VERSION);
+    infoTributaria(root, {
+      issuer: invoice.issuer,
+      accessKey: invoice.accessKey.value,
+      documentType: invoice.documentType,
+      sequential: invoice.sequential,
     });
-    this.infoTributaria(root.ele('infoTributaria'), invoice);
     this.infoFactura(root.ele('infoFactura'), invoice);
     this.detalles(root.ele('detalles'), invoice);
-    this.infoAdicional(root, invoice);
+    infoAdicional(root, invoice.additionalInfo);
     return root.end({ prettyPrint: false });
-  }
-
-  private infoTributaria(node: XMLBuilder, invoice: Invoice): void {
-    const { issuer } = invoice;
-    text(node, 'ambiente', issuer.environment);
-    text(node, 'tipoEmision', issuer.emissionType);
-    text(node, 'razonSocial', issuer.businessName);
-    optional(node, 'nombreComercial', issuer.tradeName);
-    text(node, 'ruc', issuer.ruc);
-    text(node, 'claveAcceso', invoice.accessKey.value);
-    text(node, 'codDoc', invoice.documentType);
-    text(node, 'estab', issuer.establishment);
-    text(node, 'ptoEmi', issuer.emissionPoint);
-    text(node, 'secuencial', invoice.sequential);
-    text(node, 'dirMatriz', issuer.headOfficeAddress);
   }
 
   private infoFactura(node: XMLBuilder, invoice: Invoice): void {
@@ -93,21 +79,4 @@ export class FacturaXmlRenderer implements InvoiceXmlRenderer {
       text(tax, 'valor', formatMoney(line.taxValue));
     }
   }
-
-  private infoAdicional(root: XMLBuilder, invoice: Invoice): void {
-    const entries = Object.entries(invoice.additionalInfo);
-    if (!entries.length) return;
-    const node = root.ele('infoAdicional');
-    for (const [name, value] of entries) {
-      node.ele('campoAdicional', { nombre: name }).txt(value);
-    }
-  }
-}
-
-function text(node: XMLBuilder, name: string, value: string): void {
-  node.ele(name).txt(value);
-}
-
-function optional(node: XMLBuilder, name: string, value?: string): void {
-  if (value !== undefined && value !== null && String(value).trim() !== '') text(node, name, String(value).trim());
 }

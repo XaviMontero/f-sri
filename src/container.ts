@@ -15,13 +15,17 @@ import { FirmaEcXadesSigner } from './infrastructure/signing/FirmaEcXadesSigner'
 import { FacturaXmlRenderer } from './infrastructure/sri/FacturaXmlRenderer';
 import { endpointsFromEnv, SriSoapGateway } from './infrastructure/sri/SriSoapGateway';
 import { PDFStorageFactory } from './services/storage';
-import { generateInvoicePDF } from './utils/pdf.utils';
+import { generateInvoicePDF, htmlToPdf } from './utils/pdf.utils';
+import { documentModules } from './modules';
+import { DocumentModule, DocumentModuleDeps } from './modules/types';
 
 export interface Container {
   issueInvoice: IssueInvoice;
   submitInvoice: SubmitInvoiceToSri;
   invoices: InvoiceRepository;
   ride?: RidePublisher;
+  /** Comprobantes adicionales (notas de crédito/débito, guías, retenciones). */
+  modules: DocumentModule[];
   logger: Logger;
 }
 
@@ -39,12 +43,19 @@ export interface ContainerOverrides extends Partial<Omit<IssueInvoiceDeps, 'invo
 export function createContainer(overrides: ContainerOverrides = {}): Container {
   const logger = overrides.logger ?? consoleLogger;
   const invoices = overrides.invoices ?? new MongoInvoiceRepository();
+  const issuers = overrides.issuers ?? new MongoIssuerRepository();
+  const buyers = overrides.buyers ?? new MongoBuyerRepository();
+  const products = overrides.products ?? new MongoProductRepository();
+  const sequences = overrides.sequences ?? new MongoSequenceGenerator();
+  const certificates = overrides.certificates ?? new MongoCertificateStore();
+  const signer = overrides.signer ?? new FirmaEcXadesSigner();
+  const sri = overrides.sri ?? new SriSoapGateway({ endpoints: endpointsFromEnv() });
 
   const issueInvoice = new IssueInvoice({
-    issuers: overrides.issuers ?? new MongoIssuerRepository(),
-    buyers: overrides.buyers ?? new MongoBuyerRepository(),
-    products: overrides.products ?? new MongoProductRepository(),
-    sequences: overrides.sequences ?? new MongoSequenceGenerator(),
+    issuers,
+    buyers,
+    products,
+    sequences,
     xml: overrides.xml ?? new FacturaXmlRenderer(),
     clock: overrides.clock,
     random: overrides.random,
@@ -59,14 +70,30 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
 
   const submitInvoice = new SubmitInvoiceToSri({
     invoices,
-    certificates: overrides.certificates ?? new MongoCertificateStore(),
-    signer: overrides.signer ?? new FirmaEcXadesSigner(),
-    sri: overrides.sri ?? new SriSoapGateway({ endpoints: endpointsFromEnv() }),
+    certificates,
+    signer,
+    sri,
     ride,
     clock: overrides.clock,
     logger,
     options: overrides.submitOptions,
   });
 
-  return { issueInvoice, submitInvoice, invoices, ride, logger };
+  const moduleDeps: DocumentModuleDeps = {
+    issuers,
+    buyers,
+    products,
+    sequences,
+    signer,
+    sri,
+    certificates,
+    logger,
+    clock: overrides.clock,
+    random: overrides.random,
+    submitOptions: overrides.submitOptions,
+    ride: overrides.ride === null ? null : { storage: () => PDFStorageFactory.create(), htmlToPdf },
+  };
+  const modules = documentModules.map((factory) => factory(moduleDeps));
+
+  return { issueInvoice, submitInvoice, invoices, ride, modules, logger };
 }

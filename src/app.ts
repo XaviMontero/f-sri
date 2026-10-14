@@ -57,8 +57,12 @@ export function createApp(container: Container) {
   }
   app.use(authRoutes);
   app.use(corsTestRoutes);
+  const spec = {
+    ...swaggerSpec,
+    paths: Object.assign({}, swaggerSpec.paths, ...container.modules.map((m) => m.swaggerPaths ?? {})),
+  };
   app.get('/swagger.json', (_req, res) => {
-    res.json(swaggerSpec);
+    res.json(spec);
   });
   app.get('/docs', (_req, res) => {
     res.type('html').send(swaggerHtml);
@@ -76,6 +80,9 @@ export function createApp(container: Container) {
   app.use('/api/v1/invoice', createInvoiceRouter(container));
   app.use('/api/v1/invoice-detail', invoiceDetailRoutes);
   app.use('/api/v1/invoice-pdf', createInvoicePdfRouter(container));
+  for (const module of container.modules) {
+    app.use(`/api/v1/${module.path}`, module.router);
+  }
 
   app.use(corsErrorHandler);
   app.use(errorHandler);
