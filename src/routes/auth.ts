@@ -86,6 +86,8 @@ router.post('/register', async (req, res) => {
     telefono,
     email: company_email,
     codigo_establecimiento,
+    ultimo_secuencial,
+    ultimos_secuenciales,
     punto_emision,
     tipo_ambiente,
     tipo_emision,
@@ -161,6 +163,8 @@ router.post('/register', async (req, res) => {
       email: company_email || email,
       codigo_establecimiento: codigo_establecimiento || '001',
       punto_emision: punto_emision || '001',
+      ultimo_secuencial: ultimo_secuencial === undefined ? undefined : Number(ultimo_secuencial),
+      ultimos_secuenciales,
       tipo_ambiente: tipo_ambiente || 1,
       tipo_emision: tipo_emision || 1,
       certificate: certificate, // Certificado en base64 (se almacena tal cual)

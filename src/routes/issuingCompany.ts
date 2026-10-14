@@ -1,62 +1,64 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import IssuingCompany from '../models/IssuingCompany';
-import fs from 'fs';
 import { encrypt } from '../utils/encryption.utils';
+import { asyncHandler } from '../http/errorHandler';
+import { companyIdOf } from '../http/tenant';
+import { NotFoundError } from '../domain/shared/errors';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
-  try {
-    const docs = await IssuingCompany.find();
-    res.json(docs);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+/** Campos que el emisor no puede cambiar por esta ruta (identidad y propiedad). */
+const IMMUTABLE_FIELDS = ['_id', 'ruc', 'user_id', 'certificatePath', 'createdAt', 'updatedAt'];
 
-router.get('/:id', async (req, res) => {
-  try {
-    const doc = await IssuingCompany.findById(req.params.id);
-    if (!doc) return res.status(404).json({ message: 'Not found' });
+/** Solo la propia empresa: cualquier otro id responde 404 para no revelar su existencia. */
+function ownCompanyId(req: Request): string {
+  const companyId = companyIdOf(req);
+  if (req.params.id && req.params.id !== companyId) throw new NotFoundError('Not found');
+  return companyId;
+}
+
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    res.json(await IssuingCompany.find({ _id: companyIdOf(req) }));
+  }),
+);
+
+router.get(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const doc = await IssuingCompany.findById(ownCompanyId(req));
+    if (!doc) throw new NotFoundError('Not found');
     res.json(doc);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+  }),
+);
 
-router.put('/:id', async (req, res) => {
-  try {
-    const { certificatePath, certificate, certificatePassword, certificate_password, ...rest } = req.body;
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const id = ownCompanyId(req);
+    // `certificatePath` ya no se acepta: permitía leer archivos arbitrarios del servidor.
+    const { certificate, certificatePassword, certificate_password, ...rest } = req.body ?? {};
+    for (const field of IMMUTABLE_FIELDS) delete rest[field];
 
-    let certBase64 = certificate;
-    if (certificatePath) {
-      certBase64 = fs.readFileSync(certificatePath).toString('base64');
-    }
+    const update: Record<string, unknown> = { ...rest };
+    if (certificate) update.certificate = certificate;
+    const password = certificate_password || certificatePassword;
+    if (password) update.certificate_password = encrypt(password);
 
-    // Use certificate_password or certificatePassword, whichever is available
-    const passwordToEncrypt = certificate_password || certificatePassword;
-    const encryptedPass = passwordToEncrypt ? encrypt(passwordToEncrypt) : undefined;
-
-    const updateData: any = { ...rest };
-    if (certBase64) updateData.certificate = certBase64;
-    if (encryptedPass) updateData.certificate_password = encryptedPass;
-
-    const doc = await IssuingCompany.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    if (!doc) return res.status(404).json({ message: 'Not found' });
+    const doc = await IssuingCompany.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    if (!doc) throw new NotFoundError('Not found');
     res.json(doc);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+  }),
+);
 
-router.delete('/:id', async (req, res) => {
-  try {
-    const doc = await IssuingCompany.findByIdAndDelete(req.params.id);
-    if (!doc) return res.status(404).json({ message: 'Not found' });
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const doc = await IssuingCompany.findByIdAndDelete(ownCompanyId(req));
+    if (!doc) throw new NotFoundError('Not found');
     res.json({ message: 'Deleted' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+  }),
+);
 
 export default router;

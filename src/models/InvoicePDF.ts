@@ -11,6 +11,7 @@ import mongoose, { Schema, Document } from 'mongoose';
  */
 export interface IInvoicePDF extends Document {
   factura_id: string;
+  tipo_documento?: string;
   claveAcceso: string;
 
   // Información del almacenamiento (sin buffer)
@@ -34,7 +35,10 @@ export interface IInvoicePDF extends Document {
 }
 
 const InvoicePDFSchema: Schema = new Schema({
+  /** Id del comprobante (factura u otro tipo; ver tipo_documento). */
   factura_id: { type: String, required: true, ref: 'Invoice' },
+  /** codDoc del comprobante: 01 factura, 04 nota de crédito, 05 nota de débito, 06 guía, 07 retención. */
+  tipo_documento: { type: String, default: '01' },
   claveAcceso: { type: String, required: true, unique: true },
 
   // Campos actualizados para el nuevo sistema de almacenamiento
