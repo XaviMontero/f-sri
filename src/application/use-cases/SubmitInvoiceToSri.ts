@@ -11,6 +11,9 @@ import { SriCommunicationError, SriGateway, SriMessage } from '../ports/sri';
  */
 const ALREADY_RECEIVED_CODES = new Set(['43', '70']);
 
+/** Error 45: el secuencial ya fue usado en otro comprobante de la misma serie. */
+const SEQUENTIAL_ALREADY_USED = '45';
+
 export interface SubmitOptions {
   /** Consultas de autorización antes de dejar la factura EN PROCESO. */
   authorizationAttempts: number;
@@ -102,11 +105,20 @@ export class SubmitInvoiceToSri {
 
     if (reception.status === 'DEVUELTA' && !alreadyReceived) {
       this.logger.warn('Factura DEVUELTA por el SRI', { accessKey: invoice.accessKey, messages: reception.messages });
+      const messages = reception.messages.map((m) =>
+        m.identifier === SEQUENTIAL_ALREADY_USED && !m.additionalInfo
+          ? {
+              ...m,
+              additionalInfo:
+                'El SRI ya tiene ese secuencial: configure `ultimo_secuencial` de la empresa con el último número emitido',
+            }
+          : m,
+      );
       return this.deps.invoices.update(invoice.id, {
         status: InvoiceStatus.RETURNED,
         sentAt,
         respondedAt: this.clock.now(),
-        messages: reception.messages,
+        messages,
       });
     }
     return this.deps.invoices.update(invoice.id, {

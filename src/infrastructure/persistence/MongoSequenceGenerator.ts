@@ -24,8 +24,23 @@ export class MongoSequenceGenerator implements SequenceGenerator {
         if ((error as { code?: number }).code !== 11000) throw error;
       }
     }
-    const counter = await Counter.findOneAndUpdate({ _id: id }, { $inc: { seq: 1 } }, { new: true });
+    // seq = max(seq, último secuencial declarado por la empresa) + 1, en una sola operación atómica.
+    const floor = await this.declaredLastSequential(key.ruc);
+    const counter = await Counter.findOneAndUpdate(
+      { _id: id },
+      [{ $set: { seq: { $add: [{ $max: [{ $ifNull: ['$seq', 0] }, floor] }, 1] } } }],
+      { new: true },
+    );
     return String(counter!.seq).padStart(9, '0');
+  }
+
+  /**
+   * `ultimo_secuencial` de la empresa: el último número ya emitido fuera de f-sri (otro sistema,
+   * otra instalación). Evita el error 45 "SECUENCIAL REGISTRADO" del SRI.
+   */
+  private async declaredLastSequential(ruc: string): Promise<number> {
+    const company = await IssuingCompany.findOne({ ruc }).select('ultimo_secuencial').lean();
+    return Number(company?.ultimo_secuencial) || 0;
   }
 
   private async lastIssued(ruc: string): Promise<number> {

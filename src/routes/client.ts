@@ -32,6 +32,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+/** Busca un cliente por su identificación: cédula, RUC o pasaporte (aporte de #19). */
+router.get('/docid/:identificacion', async (req, res) => {
+  try {
+    const doc = await Client.findOne({ identificacion: String(req.params.identificacion) });
+    if (!doc) return res.status(404).json({ message: 'Not found' });
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.put('/:id', async (req, res) => {
   try {
     const doc = await Client.findByIdAndUpdate(req.params.id, req.body, { new: true });

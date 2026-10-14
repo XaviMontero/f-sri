@@ -110,6 +110,14 @@ describe('SubmitInvoiceToSri', () => {
     expect(sri.authorizations).toEqual([]);
   });
 
+  it('DEVUELTA por secuencial registrado (45) agrega cómo resolverlo', async () => {
+    const sri = new ScriptedSri([devuelta('45', 'ERROR SECUENCIAL REGISTRADO')]);
+    const { useCase, invoices } = setup({ sri });
+    const result = await useCase.execute((await seed(invoices)).id);
+    expect(result.status).toBe(InvoiceStatus.RETURNED);
+    expect(result.messages![0].additionalInfo).toMatch(/ultimo_secuencial/);
+  });
+
   it.each(['43', '70'])('DEVUELTA con código %s (ya está en el SRI) continúa con la autorización', async (code) => {
     const sri = new ScriptedSri([devuelta(code)]);
     const { useCase, invoices } = setup({ sri });

@@ -388,6 +388,17 @@ describe('MongoSequenceGenerator', () => {
     expect(await Counter.findById(`${RUC}-001-001-01`).lean()).toMatchObject({ seq: 2 });
   });
 
+  it('respeta ultimo_secuencial de la empresa, también si se sube después', async () => {
+    await IssuingCompany.create(companyData({ ultimo_secuencial: 120 }));
+    expect(await gen.next(key)).toBe('000000121');
+    expect(await gen.next(key)).toBe('000000122');
+    await IssuingCompany.updateOne({ ruc: RUC }, { ultimo_secuencial: 500 });
+    expect(await gen.next(key)).toBe('000000501');
+    // Bajarlo nunca hace retroceder el contador.
+    await IssuingCompany.updateOne({ ruc: RUC }, { ultimo_secuencial: 10 });
+    expect(await gen.next(key)).toBe('000000502');
+  });
+
   it('starts at 000000001 even when the company does not exist', async () => {
     expect(await gen.next({ ...key, ruc: '1790000000001' })).toBe('000000001');
   });

@@ -4,7 +4,7 @@ import { ExclusiveCanonicalization, SignedXml } from 'xml-crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { FirmaEcXadesSigner } from '../../../src/infrastructure/signing/FirmaEcXadesSigner';
 import { FacturaXmlRenderer } from '../../../src/infrastructure/sri/FacturaXmlRenderer';
-import { testCertificate } from '../../helpers/certificate';
+import { multiKeyCertificate, testCertificate } from '../../helpers/certificate';
 import { buildInvoice } from '../support/builders';
 
 const DS = 'http://www.w3.org/2000/09/xmldsig#';
@@ -130,5 +130,21 @@ describe('FirmaEcXadesSigner (XAdES-BES con firmaec.js)', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toMatch(/^Error al firmar XML: /);
     expect(err.message).not.toMatch(/contraseña/);
+  });
+});
+
+describe('FirmaEcXadesSigner con un .p12 de varias claves', () => {
+  it('firma con el certificado de digitalSignature aunque no sea la primera clave del archivo', async () => {
+    const cert = multiKeyCertificate();
+    const xml = new FacturaXmlRenderer().render(buildInvoice());
+    const signed = await new FirmaEcXadesSigner(() => SIGNING_TIME).sign(xml, cert);
+    const doc = parse(signed);
+
+    const embedded = doc.getElementsByTagNameNS(DS, 'X509Certificate')[0].textContent!.replace(/\s/g, '');
+    expect(embedded).toBe(cert.certificateBase64);
+
+    const verifier = new SignedXml({ publicCert: cert.certificatePem, getCertFromKeyInfo: () => null });
+    verifier.loadSignature(doc.getElementsByTagNameNS(DS, 'Signature')[0] as never);
+    expect(verifier.checkSignature(signed)).toBe(true);
   });
 });
