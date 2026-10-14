@@ -2,7 +2,7 @@
 
 [![CI/CD Pipeline](https://github.com/XaviMontero/f-sri/actions/workflows/ci.yml/badge.svg)](https://github.com/XaviMontero/f-sri/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/XaviMontero/f-sri/actions)
-[![Coverage](https://img.shields.io/badge/coverage-35%25-yellow.svg)](https://github.com/XaviMontero/f-sri)
+[![Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen.svg)](https://github.com/XaviMontero/f-sri)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
@@ -64,6 +64,59 @@ src/
 ├── routes/            # Express
 └── container.ts       # Composition root (único lugar que conoce las implementaciones)
 ```
+
+## 🆕 Novedades: firma XAdES-BES y autorización SRI (octubre 2026)
+
+Validado end to end en el **ambiente de pruebas del SRI** con un certificado real (Security Data):
+facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
+
+### Firma y SRI
+- **Firma XAdES-BES** con [firmaec.js](https://github.com/XaviMontero/firmaec.js) (port a Node de la librería oficial
+  FirmaEC). La firma anterior era XMLDSig genérico, que el SRI no acepta.
+- El `.p12` se usa **en memoria**: ya no se escribe la clave privada en `/tmp` ni se prueban contraseñas "comunes".
+- **Autorización**: antes solo se enviaba a recepción y `RECIBIDA` se trataba como final. Ahora se consulta
+  `AutorizacionComprobantesOffline` con reintentos y se guardan número, fecha y XML autorizado.
+- Envío **idempotente y reanudable**: `POST /api/v1/invoice/{id}/enviar` retoma desde el último paso
+  (claves ya registradas en el SRI — mensajes 43/70 — se tratan como recibidas).
+- El endpoint del SRI sale del `tipo_ambiente` de la empresa (antes una variable global podía no coincidir con el XML).
+
+### Cálculo y XML
+- Esquema `factura` **1.1.0** con `pagos`, hasta 6 decimales en cantidad y precio.
+- **IVA 15%** vigente y catálogo completo de tarifas (0, 5, 12, 13, 14, 15, exento, no objeto). Antes estaba fijo en 12%
+  y el IVA del encabezado ignoraba la cantidad.
+- **Totales calculados en el servidor** a partir de las líneas (descuentos, agrupación por tarifa, propina). Si el cliente
+  envía totales que no coinciden → 400, sin consumir secuencial.
+- Validaciones del SRI: consumidor final (9999999999999, máximo USD 50), cédula/RUC, suma de pagos, máximo 15 campos adicionales.
+- **Secuenciales atómicos** por establecimiento/punto de emisión (antes dos facturas simultáneas podían repetir número).
+- Consumidor final y compradores ad-hoc sin necesidad de registrarlos como cliente; líneas sin producto si traen descripción y precio.
+
+### Nuevos endpoints
+- `POST /api/v1/invoice/complete?esperar=true` — responde cuando el SRI autoriza o rechaza.
+- `POST /api/v1/invoice/{id}/enviar`, `GET /api/v1/invoice/{id}/estado`, `GET /api/v1/invoice/{id}/xml`.
+- `POST /api/v1/invoice-pdf/regenerate/{id}` ahora regenera el RIDE de verdad (antes era un stub).
+- Con almacenamiento local, el servidor sirve los PDFs en `/pdfs`.
+
+### RIDE
+- Código de barras Code128 de la clave de acceso, subtotales por tarifa, formas de pago e información adicional reales.
+- Todo el contenido se escapa (antes un nombre con HTML se inyectaba en el PDF).
+
+### Seguridad
+- Facturas, PDFs y empresa emisora **acotados a la empresa del token** (antes cualquier usuario veía y modificaba datos ajenos).
+- El certificado y su contraseña **nunca** salen por la API (`tiene_certificado: true` en su lugar).
+- Eliminado `certificatePath` en `PUT /issuing-company`, que permitía leer archivos arbitrarios del servidor.
+- Una factura **AUTORIZADA no se puede eliminar** (409); `PUT /invoice/{id}` y `POST /invoice` crudo se retiraron.
+
+### Arquitectura y calidad
+- Capas DDD/hexagonal (ver Arquitectura) con composition root en `src/container.ts`.
+- Tests de **Jest a Vitest** (firmaec.js es ESM): **377 tests** de dominio, casos de uso, adaptadores (firma verificada
+  criptográficamente, SOAP del SRI) e integración HTTP con Mongo en memoria. Cobertura ≥ 80% exigida en CI.
+- CI en Node 22/24 · `scripts/e2e-sri-pruebas.sh` para probar contra el SRI real.
+
+### ⚠️ Cambios incompatibles
+- `PUT /api/v1/invoice/{id}` y `POST /api/v1/invoice` (sin `/complete`) ya no existen.
+- Rutas de PDFs: `/invoice-pdf/invoice/{id}`, `/invoice-pdf/access-key/{clave}`, `/invoice-pdf/download/{clave}`.
+- `SRI_ENVIRONMENT` ya no se usa: el ambiente lo define cada empresa.
+- Requiere Node ≥ 20.19 y `ENCRYPTION_KEY`/`JWT_SECRET` definidos al arrancar.
 
 ## 🛠️ Tecnologías
 
@@ -296,6 +349,9 @@ CMD ["npm", "start"]
 ## 📄 Licencia
 
 Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
+
+La firma electrónica usa [firmaec.js](https://github.com/XaviMontero/firmaec.js) (incluida en `vendor/`), distribuida bajo
+**AGPL-3.0-or-later** por derivar de la librería FirmaEC; sus términos aplican a ese componente.
 
 ## 🆘 Soporte
 
