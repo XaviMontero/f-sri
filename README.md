@@ -176,17 +176,18 @@ facturas firmadas, recibidas y **AUTORIZADAS**, con su RIDE generado.
 ## 📦 Instalación Rápida
 
 ```bash
-# Clonar el repositorio
+# Clonar el repositorio (requiere Node ≥ 20.19 y MongoDB; `docker compose up -d` levanta uno)
 git clone https://github.com/XaviMontero/f-sri.git
-cd sistema-facturacion-electronica
+cd f-sri
 
-# Instalar dependencias
+# Instalar dependencias (descarga también el Chrome que usa el RIDE)
 npm install
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus configuraciones
-# Nota: Necesitarás una cuenta de Cloudinary (gratuita) para almacenar PDFs
+# Obligatorias: MONGO_URI, JWT_SECRET, MASTER_REGISTRATION_KEY y
+# ENCRYPTION_KEY (genérala con: openssl rand -hex 32).
+# Los PDFs se guardan en local por defecto; Cloudinary es opcional.
 
 # Ejecutar en desarrollo
 npm run dev
