@@ -302,30 +302,61 @@ export default {
       },
     },
     '/api/v1/invoice': {
-      get: { tags: ['Invoice CRUD'], summary: 'List Invoices', responses: { '200': { description: 'OK' } } },
-      post: {
+      get: {
         tags: ['Invoice CRUD'],
-        summary: 'Create Factura',
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': { schema: { $ref: '#/components/schemas/Factura' } },
-          },
-        },
-        responses: { '201': { description: 'Created' } },
+        summary: 'Listar facturas de la empresa del token (sin XML)',
+        responses: { '200': { description: 'OK' } },
       },
     },
     '/api/v1/invoice/complete': {
       post: {
         tags: ['Invoice Processing'],
-        summary: 'Create Factura with details',
+        summary: 'Emitir factura: totales, XML 1.1.0, firma XAdES-BES, recepción y autorización SRI',
+        parameters: [
+          {
+            name: 'esperar',
+            in: 'query',
+            required: false,
+            schema: { type: 'boolean' },
+            description:
+              'Si es true, responde cuando el SRI autoriza o rechaza; si no, el envío sigue en segundo plano',
+          },
+        ],
         requestBody: {
           required: true,
           content: {
             'application/json': { schema: { $ref: '#/components/schemas/FacturaComplete' } },
           },
         },
-        responses: { '201': { description: 'Created' } },
+        responses: {
+          '201': { description: 'Factura creada (data.estado: PENDIENTE, AUTORIZADO, DEVUELTA…)' },
+          '400': { description: 'Datos inválidos o totales que no coinciden con los calculados' },
+          '403': { description: 'El RUC no pertenece a la empresa del token' },
+        },
+      },
+    },
+    '/api/v1/invoice/{id}/enviar': {
+      post: {
+        tags: ['Invoice Processing'],
+        summary: 'Reintentar firma/envío/autorización (idempotente)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Estado actualizado' }, '404': { description: 'No encontrada' } },
+      },
+    },
+    '/api/v1/invoice/{id}/estado': {
+      get: {
+        tags: ['Invoice Processing'],
+        summary: 'Estado SRI, número/fecha de autorización y mensajes',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK' } },
+      },
+    },
+    '/api/v1/invoice/{id}/xml': {
+      get: {
+        tags: ['Invoice Processing'],
+        summary: 'Descargar el XML autorizado (o firmado si aún no se autoriza)',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'application/xml' } },
       },
     },
     '/api/v1/invoice/{id}': {
@@ -335,21 +366,9 @@ export default {
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'OK' } },
       },
-      put: {
-        tags: ['Invoice CRUD'],
-        summary: 'Update Factura',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': { schema: { $ref: '#/components/schemas/FacturaUpdatePayload' } },
-          },
-        },
-        responses: { '200': { description: 'Updated' } },
-      },
       delete: {
         tags: ['Invoice CRUD'],
-        summary: 'Delete Factura',
+        summary: 'Eliminar factura no autorizada (409 si está AUTORIZADO)',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'Deleted' } },
       },
@@ -451,7 +470,7 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/factura/{id}': {
+    '/api/v1/invoice-pdf/invoice/{id}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por ID de factura',
@@ -488,16 +507,16 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/{id}/download': {
+    '/api/v1/invoice-pdf/download/{claveAcceso}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Descargar archivo PDF',
         description:
-          'Descarga el archivo PDF de una factura. El PDF se genera automáticamente cuando el SRI confirma la recepción.',
+          'Descarga el archivo PDF de una factura. El PDF se genera automáticamente cuando el SRI autoriza la factura.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
-            name: 'id',
+            name: 'claveAcceso',
             in: 'path',
             required: true,
             schema: { type: 'string' },
@@ -529,7 +548,7 @@ export default {
         },
       },
     },
-    '/api/v1/invoice-pdf/clave/{claveAcceso}': {
+    '/api/v1/invoice-pdf/access-key/{claveAcceso}': {
       get: {
         tags: ['PDF Management'],
         summary: 'Obtener PDF por clave de acceso',
@@ -604,67 +623,6 @@ export default {
           '404': { description: 'Factura no encontrada' },
           '401': { description: 'No autorizado' },
           '500': { description: 'Error del servidor al regenerar PDF' },
-        },
-      },
-    },
-    '/api/v1/invoice-pdf/bulk-download': {
-      post: {
-        tags: ['PDF Management'],
-        summary: 'Descarga masiva de PDFs',
-        description: 'Descarga múltiples PDFs de facturas en un archivo ZIP.',
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  facturaIds: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Array de IDs de facturas',
-                    example: ['64f8a1b2c3d4e5f6a7b8c9d2', '64f8a1b2c3d4e5f6a7b8c9d3'],
-                  },
-                  fechaInicio: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de inicio (formato YYYY-MM-DD)',
-                    example: '2025-01-01',
-                  },
-                  fechaFin: {
-                    type: 'string',
-                    format: 'date',
-                    description: 'Fecha de fin (formato YYYY-MM-DD)',
-                    example: '2025-01-31',
-                  },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'Archivo ZIP con PDFs descargado',
-            content: {
-              'application/zip': {
-                schema: {
-                  type: 'string',
-                  format: 'binary',
-                },
-              },
-            },
-            headers: {
-              'Content-Disposition': {
-                description: 'Attachment filename',
-                schema: { type: 'string', example: 'attachment; filename="facturas-2025-01.zip"' },
-              },
-            },
-          },
-          '400': { description: 'Parámetros de búsqueda inválidos' },
-          '401': { description: 'No autorizado' },
-          '404': { description: 'No se encontraron PDFs para los criterios especificados' },
-          '500': { description: 'Error del servidor al generar ZIP' },
         },
       },
     },

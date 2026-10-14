@@ -13,7 +13,7 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [22.x, 24.x]
     
     steps:
     - name: Checkout repository
@@ -41,7 +41,7 @@ jobs:
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
-      if: matrix.node-version == '20.x'
+      if: matrix.node-version == '22.x'
       with:
         fail_ci_if_error: false
         
@@ -58,7 +58,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '22.x'
         cache: 'npm'
         
     - name: Install dependencies
@@ -82,7 +82,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '22.x'
         cache: 'npm'
         
     - name: Install dependencies
