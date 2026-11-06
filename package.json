@@ -71,7 +71,7 @@
     "@vitest/coverage-v8": "^5.0.4",
     "eslint-config-prettier": "^10.1.5",
     "mongodb-memory-server": "^11.3.0",
-    "node-forge": "^1.4.0",
+    "node-forge": "^1.4.3",
     "prettier": "^3.5.3",
     "supertest": "^6.3.3",
     "tsx": "^4.23.15",
