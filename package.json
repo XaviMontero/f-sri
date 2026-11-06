@@ -55,7 +55,7 @@
     "jsbarcode": "^3.11.6",
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^8.15.0",
-    "nodemailer": "^10.1.0",
+    "nodemailer": "^10.1.4",
     "puppeteer": "^25.13.0",
     "xml-crypto": "^6.1.2",
     "xmlbuilder2": "^4.0.3"
